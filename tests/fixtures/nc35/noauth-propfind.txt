@@ -1,0 +1,23 @@
+HTTP/1.1 401 Unauthorized
+Date: Fri, 20 Nov 2026 14:11:56 GMT
+Server: Apache/2.4.71 (Debian)
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-Robots-Tag: noindex, nofollow
+Referrer-Policy: no-referrer
+X-Powered-By: PHP/8.5.13
+Set-Cookie: ocvnxzaymzn9=b4fd2efbb9fbd97390a013e0ce98fa4a; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: oc_sessionPassphrase=utsnvnd0VACvnw7vvAyCBW0Q1iZ4TFXrbJNO8PC2v2fbqAN3T85gIWYbmrOTPduoczgMFpezoqn%2Bh%2Bn0irXxCHVu6%2FZwuMBq4ddz%2F8MX%2F6XLeMTCBjT81qar6L0pN0N3; path=/; HttpOnly; SameSite=Lax
+Content-Security-Policy: default-src 'none';
+Set-Cookie: nc_sameSiteCookielax=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=lax
+Set-Cookie: nc_sameSiteCookiestrict=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=strict
+WWW-Authenticate: Basic realm="Nextcloud", charset="UTF-8"
+Content-Length: 630
+Content-Type: application/xml; charset=utf-8
+
+<?xml version="1.0" encoding="utf-8"?>
+<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+  <s:exception>Sabre\DAV\Exception\NotAuthenticated</s:exception>
+  <s:message>No public access to this resource., AppAPIAuth has not passed, This request is not for a federated calendar, No 'Authorization: Basic' header found. Either the client didn't send one, or the server is misconfigured, No 'Authorization: Bearer' header found. Either the client didn't send one, or the server is mis-configured, No 'Authorization: Basic' header found. Either the client didn't send one, or the server is misconfigured</s:message>
+</d:error>

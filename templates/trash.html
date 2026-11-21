@@ -1,0 +1,24 @@
+{% extends "app.html" %}
+{% block title %}Trash{% endblock %}
+{% block content %}
+<h1>Trash</h1>
+<div id="trash-state" data-count="{{ rows.len() }}" hidden></div>
+<p class="muted">{% if retention > 0 %}Deleted items stay here for {{ retention }} days, then they are removed for good.{% else %}Deleted items stay here until you empty the trash.{% endif %}</p>
+<div class="toolbar"><button type="button" class="danger" data-trash-empty{% if rows.is_empty() %} disabled{% endif %}>Empty trash</button></div>
+<div id="uploads" class="uploads" aria-live="polite"></div>
+<ul class="list" id="trashlist">
+  <li class="row head" aria-hidden="true"><span>Name</span><span>Size</span><span>Deleted</span><span></span></li>
+  {% for r in rows %}
+  <li class="row" data-entry="{{ r.entry }}" data-name="{{ r.name }}">
+    <div class="name"><span class="icon" aria-hidden="true">{{ r.icon }}</span><span class="text">{{ r.name }}</span><span class="badge" title="Original location">{{ r.location }}</span></div>
+    <span class="meta size">{{ r.size }}</span>
+    <span class="meta mtime">{{ r.deleted }}</span>
+    <span class="actions">
+      <button type="button" data-trash="restore">Restore</button>
+      <button type="button" class="danger" data-trash="delete">Delete permanently</button>
+    </span>
+  </li>
+  {% endfor %}
+  {% if rows.is_empty() %}<li class="empty">The trash is empty.</li>{% endif %}
+</ul>
+{% endblock %}

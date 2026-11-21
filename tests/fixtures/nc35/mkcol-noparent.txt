@@ -1,0 +1,28 @@
+# -X MKCOL http://127.0.0.1:18090/remote.php/dav/files/admin/nope/deeper/
+HTTP/1.1 409 Conflict
+Date: Fri, 20 Nov 2026 14:11:54 GMT
+Server: Apache/2.4.71 (Debian)
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-Robots-Tag: noindex, nofollow
+Referrer-Policy: no-referrer
+X-Powered-By: PHP/8.5.13
+Set-Cookie: ocvnxzaymzn9=27d08c72279ca35e260bcd7f5de053a9; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: oc_sessionPassphrase=oPjOXT9mHwplRgUE5JPF4%2FSVPpLRJIuRu6lcTcgFNv5ELZ5d9kLEgdYFDAuyZWAfY59iqWCt%2F623I9sITbT4IuMNTEFRZcLR%2BF4wVTYeA7e%2Fc1QUrr%2Bnd5iWDtPpQ8OU; path=/; HttpOnly; SameSite=Lax
+Content-Security-Policy: default-src 'none';
+Set-Cookie: nc_sameSiteCookielax=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=lax
+Set-Cookie: nc_sameSiteCookiestrict=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=strict
+Set-Cookie: ocvnxzaymzn9=27d08c72279ca35e260bcd7f5de053a9; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: ocvnxzaymzn9=1e0cd1539dd42d139a784654ac7bbf8e; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: cookie_test=test; expires=Fri, 20 Nov 2026 15:11:54 GMT; Max-Age=3600
+X-User-Id: admin
+Content-Length: 218
+Content-Type: application/xml; charset=utf-8
+
+<?xml version="1.0" encoding="utf-8"?>
+<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+  <s:exception>Sabre\DAV\Exception\Conflict</s:exception>
+  <s:message>Parent node does not exist</s:message>
+</d:error>
+

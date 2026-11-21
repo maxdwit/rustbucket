@@ -1,0 +1,50 @@
+[package]
+name = "rustbucket-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+rustbucket = { path = ".." }
+
+# not part of the main workspace (needs a nightly toolchain)
+[workspace]
+
+[[bin]]
+name = "propfind"
+path = "fuzz_targets/propfind.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "search"
+path = "fuzz_targets/search.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "paths"
+path = "fuzz_targets/paths.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "config"
+path = "fuzz_targets/config.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "share_params"
+path = "fuzz_targets/share_params.rs"
+test = false
+doc = false
+bench = false

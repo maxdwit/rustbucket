@@ -1,0 +1,65 @@
+{% extends "app.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<h1>Users and groups</h1>
+{% if let Some(f) = flash %}<div class="flash {{ f.kind }}" role="status">{{ f.text }}</div>{% endif %}
+
+<h2>Accounts</h2>
+<table class="users">
+  <thead><tr><th>Account</th><th>Name</th><th>Email</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr id="user-{{ u.uid }}">
+    <td>{{ u.uid }}</td><td>{{ u.display_name }}</td><td>{% if u.email.is_empty() %}<span class="muted">-</span>{% else %}{{ u.email }}{% endif %}</td>
+    <td>{% if u.is_admin %}admin{% else %}user{% endif %}{% if !u.enabled %} <strong>(disabled)</strong>{% endif %}</td>
+    <td><details class="edit"><summary>Edit</summary>
+      <form class="stack" method="post" action="/settings/users/{{ u.uid_enc }}">
+        <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+        <label>Display name <input type="text" name="display_name" value="{{ u.display_name }}" required maxlength="64"></label>
+        <label>Email <input type="email" name="email" value="{{ u.email }}" maxlength="254"></label>
+        <label>New password (leave empty to keep) <input type="password" name="password" autocomplete="new-password"></label>
+        <label class="check"><input type="checkbox" name="is_admin" value="1"{% if u.is_admin %} checked{% endif %}> Administrator</label>
+        <label class="check"><input type="checkbox" name="enabled" value="1"{% if u.enabled %} checked{% endif %}> Enabled</label>
+        <button class="primary" type="submit">Save</button>
+      </form></details></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="muted">Accounts are never deleted here: disable one to lock it out (its files stay untouched).</p>
+
+<h2>Create account</h2>
+<form class="stack" method="post" action="/settings/users">
+  <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+  <label>Account name <input type="text" name="uid" required maxlength="64" autocapitalize="none"></label>
+  <label>Display name <input type="text" name="display_name" maxlength="64"></label>
+  <label>Email <input type="email" name="email" maxlength="254"></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" required></label>
+  <label class="check"><input type="checkbox" name="is_admin" value="1"> Administrator</label>
+  <button class="primary" type="submit">Create</button>
+</form>
+
+<h2>Groups</h2>
+{% for g in groups %}
+<div class="card-lite" id="group-{{ g.gid }}">
+  <strong>{{ g.gid }}</strong>
+  <ul class="sharelist">
+    {% for m in g.members %}
+    <li><span class="who">{{ m.label }}</span>
+      <form method="post" action="/settings/groups/{{ g.gid_enc }}/members/{{ m.uid_enc }}/delete"><input type="hidden" name="csrf" value="{{ chrome.csrf }}"><button class="danger" type="submit">Remove</button></form></li>
+    {% endfor %}
+    {% if g.members.is_empty() %}<li class="muted">No members.</li>{% endif %}
+  </ul>
+  <form class="inline" method="post" action="/settings/groups/{{ g.gid_enc }}/members">
+    <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+    <label>Add member <select name="uid">{% for u in g.candidates %}<option value="{{ u.uid }}">{{ u.label }}</option>{% endfor %}</select></label>
+    <button type="submit"{% if g.candidates.is_empty() %} disabled{% endif %}>Add</button>
+  </form>
+</div>
+{% endfor %}
+<form class="inline" method="post" action="/settings/groups">
+  <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+  <label>New group <input type="text" name="gid" required maxlength="64"></label>
+  <button type="submit">Create group</button>
+</form>
+{% endblock %}

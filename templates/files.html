@@ -1,0 +1,7 @@
+{% extends "app.html" %}
+{% block title %}Files{% endblock %}
+{% block content %}
+<div id="uploads" class="uploads" aria-live="polite"></div>
+<div id="files-root">{{ inner|safe }}</div>
+<dialog id="share-dialog" aria-label="Share"><div id="share-body"></div></dialog>
+{% endblock %}

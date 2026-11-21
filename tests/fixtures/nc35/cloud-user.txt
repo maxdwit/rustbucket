@@ -1,0 +1,26 @@
+# -H OCS-APIRequest:true http://127.0.0.1:18090/ocs/v2.php/cloud/user?format=json
+HTTP/1.1 200 OK
+Date: Fri, 20 Nov 2026 14:11:53 GMT
+Server: Apache/2.4.71 (Debian)
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-Robots-Tag: noindex, nofollow
+Referrer-Policy: no-referrer
+X-Powered-By: PHP/8.5.13
+Set-Cookie: ocvnxzaymzn9=bf27f18ae303ae0b432adcdfd51547ec; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: oc_sessionPassphrase=iOI%2F2G0mYNQb4szH7MXrzCvMmkB6kc4Lj%2BdgorF2aW9X%2FQioly9gXpnKjd36gImeWN1hHkyuQ1JB%2FPoZcMSsBQv3SijuMQKqPM6poAObAkkbUk361hEvEIblL1W00Xbx; path=/; HttpOnly; SameSite=Lax
+Content-Security-Policy: default-src 'none';base-uri 'none';manifest-src 'self';frame-ancestors 'none'
+Set-Cookie: nc_sameSiteCookielax=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=lax
+Set-Cookie: nc_sameSiteCookiestrict=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=strict
+Set-Cookie: ocvnxzaymzn9=bf27f18ae303ae0b432adcdfd51547ec; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: ocvnxzaymzn9=74302256d612af6210e0070f348e0691; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: cookie_test=test; expires=Fri, 20 Nov 2026 15:11:53 GMT; Max-Age=3600
+X-Request-Id: M2Qa0qBnTgpPWcMTOpoq
+Cache-Control: no-cache, no-store, must-revalidate
+Feature-Policy: autoplay 'none';camera 'none';fullscreen 'none';geolocation 'none';microphone 'none';payment 'none'
+X-User-Id: admin
+Content-Length: 1204
+Content-Type: application/json; charset=utf-8
+
+{"ocs":{"meta":{"status":"ok","statuscode":200,"message":"OK"},"data":{"enabled":true,"storageLocation":"\/var\/www\/html\/data\/admin","id":"admin","firstLoginTimestamp":1795183887,"lastLoginTimestamp":1795183887,"lastLogin":1795183887000,"backend":"Database","subadmin":[],"quota":{"free":-3,"used":65646205,"total":-3,"relative":0,"quota":-3},"manager":"","avatarScope":"v2-federated","email":null,"emailScope":"v2-federated","additional_mail":[],"additional_mailScope":[],"displayname":"admin","display-name":"admin","displaynameScope":"v2-federated","phone":"","phoneScope":"v2-local","address":"","addressScope":"v2-local","website":"","websiteScope":"v2-local","twitter":"","twitterScope":"v2-local","bluesky":"","blueskyScope":"v2-local","fediverse":"","fediverseScope":"v2-local","organisation":"","organisationScope":"v2-local","role":"","roleScope":"v2-local","headline":"","headlineScope":"v2-local","biography":"","biographyScope":"v2-local","profile_enabled":"1","profile_enabledScope":"v2-local","pronouns":"","pronounsScope":"v2-federated","groups":["admin"],"language":"en","locale":"","timezone":"","notify_email":null,"backendCapabilities":{"setDisplayName":true,"setPassword":true}}}}

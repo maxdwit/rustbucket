@@ -1,0 +1,40 @@
+<div id="files-state" data-dir="{{ dir }}" data-can-create="{% if can_create %}1{% else %}0{% endif %}" hidden></div>
+<h1 class="visually-hidden">Files</h1>
+<nav class="crumbs" aria-label="Path">
+  <a href="/apps/files/" hx-get="/apps/files/" hx-target="#files-root" hx-push-url="true">All files</a>
+  {% for c in crumbs %}<span class="sep">/</span><a href="{{ c.link }}" hx-get="{{ c.link }}" hx-target="#files-root" hx-push-url="true">{{ c.name }}</a>{% endfor %}
+</nav>
+{% if let Some(m) = message %}<div class="flash err" role="alert">{{ m }}</div>{% endif %}
+<div class="toolbar">
+  <button id="btn-upload" type="button" class="primary"{% if !can_create %} disabled{% endif %}>Upload</button>
+  <input id="file-input" class="visually-hidden" type="file" multiple aria-label="Choose files to upload">
+  <button id="btn-newfolder" type="button"{% if !can_mkdir %} disabled{% endif %}>New folder</button>
+</div>
+<div id="newfolder-host" hidden></div>
+<div id="dropzone" class="dropzone">Drop files here to upload</div>
+<ul class="list" id="listing">
+  <li class="row head" aria-hidden="true"><span>Name</span><span>Size</span><span>Modified</span><span></span></li>
+  {% for r in rows %}
+  <li class="row" data-path="{{ r.path }}" data-name="{{ r.name }}" data-dir="{% if r.is_dir %}1{% else %}0{% endif %}"{% if r.can_move %} draggable="true"{% endif %}>
+    <div class="name">
+      {% if r.is_dir %}<a href="{{ r.link }}" hx-get="{{ r.link }}" hx-target="#files-root" hx-push-url="true">
+      {% else %}<a href="{{ r.download }}" download>{% endif %}
+        {% if let Some(t) = r.thumb %}<img class="thumb" loading="lazy" src="{{ t }}" alt="">{% else %}<span class="icon" aria-hidden="true">{{ r.icon }}</span>{% endif %}
+        <span class="text">{{ r.name }}</span></a>
+      {% if let Some(o) = r.from_owner %}<span class="badge">from {{ o }}</span>{% endif %}
+      {% if r.shared_out %}<span class="badge">shared</span>{% endif %}
+      {% if r.read_only %}<span class="badge">read-only</span>{% endif %}
+    </div>
+    <span class="meta size">{{ r.size }}</span>
+    <span class="meta mtime">{{ r.mtime }}</span>
+    <span class="actions">
+      {% if r.can_rename %}<button type="button" data-action="rename">Rename</button>{% endif %}
+      {% if r.can_move %}<button type="button" data-action="move">Move</button>{% endif %}
+      {% if r.can_versions %}<button type="button" data-action="versions">Versions</button>{% endif %}
+      {% if r.can_share %}<button type="button" data-action="share">Share</button>{% endif %}
+      {% if r.can_delete %}<button type="button" data-action="delete">{{ r.delete_label }}</button>{% endif %}
+    </span>
+  </li>
+  {% endfor %}
+  {% if rows.is_empty() %}<li class="empty">This folder is empty.</li>{% endif %}
+</ul>

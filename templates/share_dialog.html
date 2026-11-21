@@ -1,0 +1,24 @@
+<div id="share-state" data-path="{{ path }}" hidden></div>
+<div class="head"><h2>Share "{{ name }}"</h2><button id="share-close" type="button">Close</button></div>
+<div id="share-msg" role="status"></div>
+{% if !can_share %}
+<p class="muted">This item was shared with you; only its owner can share it further.</p>
+{% else %}
+<ul class="sharelist">
+  {% for s in shares %}
+  <li><span class="who">{{ s.label }}{% if s.is_group %} <span class="badge">group</span>{% endif %}</span>
+    <select data-share-perm="{{ s.id }}" aria-label="Permissions for {{ s.label }}">
+      {% for o in s.options %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+    </select>
+    <button type="button" class="danger" data-share-remove="{{ s.id }}">Remove</button></li>
+  {% endfor %}
+  {% if shares.is_empty() %}<li class="muted">Not shared with anybody yet.</li>{% endif %}
+</ul>
+<form id="share-add" class="inline">
+  <input type="hidden" name="path" value="{{ path }}">
+  <label>Share with <input name="with" list="sharee-list" autocomplete="off" required placeholder="user or group"></label>
+  <datalist id="sharee-list"></datalist>
+  <label>Permission <select name="permissions">{% for o in add_options %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}</select></label>
+  <button type="submit" class="primary">Share</button>
+</form>
+{% endif %}

@@ -1,0 +1,30 @@
+# http://127.0.0.1:18090/remote.php/dav/files/admin/Test%20%C3%84%C3%B6/h.txt
+HTTP/1.1 200 OK
+Date: Fri, 20 Nov 2026 14:11:55 GMT
+Server: Apache/2.4.71 (Debian)
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-Robots-Tag: noindex, nofollow
+Referrer-Policy: no-referrer
+X-Powered-By: PHP/8.5.13
+Set-Cookie: ocvnxzaymzn9=21f4aa0abb532cddd991f7eada4f9d79; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: oc_sessionPassphrase=MweHhPhCWGyZziADrsiIumg0%2FLb1oE%2FCZURhykPYu%2B3fcQE1o3Lj3GS1DDSPFAH%2FtjX1PW%2Fo7pCslkUXzAWiyd%2Ff3vLCE0%2B4Be5XPi5GGlj6%2B8Gtnm4jWfE8HliOetsZ; path=/; HttpOnly; SameSite=Lax
+Content-Security-Policy: default-src 'none';
+Set-Cookie: nc_sameSiteCookielax=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=lax
+Set-Cookie: nc_sameSiteCookiestrict=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=strict
+Set-Cookie: ocvnxzaymzn9=21f4aa0abb532cddd991f7eada4f9d79; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: ocvnxzaymzn9=edaa2869f314762643f08b4b2523ece4; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: cookie_test=test; expires=Fri, 20 Nov 2026 15:11:55 GMT; Max-Age=3600
+X-User-Id: admin
+Last-Modified: Tue, 14 Nov 2023 22:15:00 GMT
+ETag: "dd3a3212d147059c21f15513e424ba72"
+Content-Length: 12
+X-Request-Id: NAqp3HrrceSrsby7TL86
+OC-ETag: "dd3a3212d147059c21f15513e424ba72"
+Content-Disposition: attachment; filename*=UTF-8''h.txt; filename="h.txt"
+X-Accel-Buffering: no
+Content-Type: text/plain;charset=UTF-8
+
+hello world
+

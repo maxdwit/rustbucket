@@ -1,0 +1,28 @@
+# -X PROPFIND -H Depth: 0 http://127.0.0.1:18090/remote.php/webdav/
+HTTP/1.1 207 Multi-Status
+Date: Fri, 20 Nov 2026 14:11:56 GMT
+Server: Apache/2.4.71 (Debian)
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-Robots-Tag: noindex, nofollow
+Referrer-Policy: no-referrer
+X-Powered-By: PHP/8.5.13
+Set-Cookie: ocvnxzaymzn9=fc9a01bca6624c4d35727c35dae039a7; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: oc_sessionPassphrase=OLP5%2FjaOsJfYNuTlO9a98aol5Id2IsVAZwceUvXpI2%2BveIwL%2B%2Bfjg5VCpE2ueFO03Fss1pz8ni%2FfyiLsVI0GazCd46wvqAGPmx0PmqV7QzFjlHW9EDpLKH761e0ij3iB; path=/; HttpOnly; SameSite=Lax
+Content-Security-Policy: default-src 'none';
+Set-Cookie: nc_sameSiteCookielax=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=lax
+Set-Cookie: nc_sameSiteCookiestrict=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=strict
+Set-Cookie: ocvnxzaymzn9=fc9a01bca6624c4d35727c35dae039a7; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: ocvnxzaymzn9=d4bc8555de3bea9fe7725dbc0d1dc101; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: cookie_test=test; expires=Fri, 20 Nov 2026 15:11:56 GMT; Max-Age=3600
+X-User-Id: admin
+Vary: Brief,Prefer
+DAV: 1, 3, extended-mkcol, nextcloud-checksum-update, 2
+X-Request-Id: 6Ov4S9oBdqJZdrHTmG6d
+Content-Length: 576
+Content-Type: application/xml; charset=utf-8
+
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/webdav/</d:href><d:propstat><d:prop><d:getlastmodified>Fri, 20 Nov 2026 14:11:56 GMT</d:getlastmodified><d:resourcetype><d:collection/></d:resourcetype><d:quota-used-bytes>65646205</d:quota-used-bytes><d:quota-available-bytes>-3</d:quota-available-bytes><d:getetag>&quot;6b00552c70ca2&quot;</d:getetag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "timezone": "UTC",
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 5,
+  "vulnerabilityAlerts": { "labels": ["security"], "schedule": ["at any time"] },
+  "packageRules": [
+    { "matchManagers": ["cargo"], "matchUpdateTypes": ["minor", "patch"], "groupName": "rust minor/patch" },
+    { "matchManagers": ["dockerfile", "docker-compose"], "groupName": "container images" },
+    { "description": "the Nextcloud reference image is pinned on purpose (compatibility target 35.x); bump deliberately",
+      "matchPackageNames": ["nextcloud"], "enabled": false }
+  ]
+}

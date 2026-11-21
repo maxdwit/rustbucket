@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Connect account{% endblock %}
+{% block content %}
+<h1>Connect to your account</h1>
+<p>Do you want to grant <strong>{{ device }}</strong> access to the account <strong>{{ user }}</strong>?</p>
+<form method="post" action="{{ action }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button type="submit">Grant access</button>
+</form>
+{% endblock %}

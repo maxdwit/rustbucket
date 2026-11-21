@@ -1,0 +1,21 @@
+# Not run yet (this branch is a preview): it uses only `make` targets, like a human would.
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make check          # fmt + clippy + tests, inside a rust container
+      - run: make audit-pii
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make smoke          # builds the one-container image and probes it over TLS

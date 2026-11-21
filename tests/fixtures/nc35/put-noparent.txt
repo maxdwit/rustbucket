@@ -1,0 +1,28 @@
+# -X PUT --data-binary @/tmp/h.txt http://127.0.0.1:18090/remote.php/dav/files/admin/nope2/h.txt
+HTTP/1.1 404 Not Found
+Date: Fri, 20 Nov 2026 14:11:55 GMT
+Server: Apache/2.4.71 (Debian)
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-Robots-Tag: noindex, nofollow
+Referrer-Policy: no-referrer
+X-Powered-By: PHP/8.5.13
+Set-Cookie: ocvnxzaymzn9=e1074bcdf1c84afb503cc7b29f842cce; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: oc_sessionPassphrase=ng0FKZ%2BmtLu%2BLxkl8PQiiKmf22vqzR0WRhzk9y46SAXRs1qrFfQtPCqoENJ%2BLJtvdFPO4BxY2xR8Uw2lmd4uRfCpPG7UgglEQoTVRoy3sYkAWXLfnoTrN9gUpavfDDPa; path=/; HttpOnly; SameSite=Lax
+Content-Security-Policy: default-src 'none';
+Set-Cookie: nc_sameSiteCookielax=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=lax
+Set-Cookie: nc_sameSiteCookiestrict=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=strict
+Set-Cookie: ocvnxzaymzn9=e1074bcdf1c84afb503cc7b29f842cce; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: ocvnxzaymzn9=d6cd29d30c2467b7642e789a86192c21; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: cookie_test=test; expires=Fri, 20 Nov 2026 15:11:55 GMT; Max-Age=3600
+X-User-Id: admin
+Content-Length: 234
+Content-Type: application/xml; charset=utf-8
+
+<?xml version="1.0" encoding="utf-8"?>
+<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+  <s:exception>Sabre\DAV\Exception\NotFound</s:exception>
+  <s:message>File with name /nope2 could not be located</s:message>
+</d:error>
+

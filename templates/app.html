@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ chrome.csrf }}">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"selfRequestsOnly":true,"historyCacheSize":0}'>
+<title>{% block title %}{% endblock %} - rustbucket</title>
+<link rel="stylesheet" href="/static/app.css?v={{ chrome.ver }}">
+<script src="/static/htmx.min.js?v={{ chrome.ver }}" defer></script>
+<script src="/static/app.js?v={{ chrome.ver }}" defer></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/apps/files/">rustbucket</a>
+  <a href="/apps/files/">Files</a>
+  <a href="/apps/files/trash">Trash</a>
+  <a href="/settings/user">{{ chrome.display }}</a>
+  {% if chrome.is_admin %}<a href="/settings/users">Users</a>{% endif %}
+  <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ chrome.csrf }}"><button type="submit">Sign out</button></form>
+</header>
+<main id="main" data-user="{{ chrome.uid }}" data-dav="/remote.php/dav/files/{{ chrome.uid_enc }}" data-uploads="/remote.php/dav/uploads/{{ chrome.uid_enc }}" data-trash="/remote.php/dav/trashbin/{{ chrome.uid_enc }}" data-versions="/remote.php/dav/versions/{{ chrome.uid_enc }}">
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

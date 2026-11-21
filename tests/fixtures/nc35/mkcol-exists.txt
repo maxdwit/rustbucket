@@ -1,0 +1,29 @@
+# -X MKCOL http://127.0.0.1:18090/remote.php/dav/files/admin/Test%20%C3%84%C3%B6/
+HTTP/1.1 405 Method Not Allowed
+Date: Fri, 20 Nov 2026 14:11:54 GMT
+Server: Apache/2.4.71 (Debian)
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-Robots-Tag: noindex, nofollow
+Referrer-Policy: no-referrer
+X-Powered-By: PHP/8.5.13
+Set-Cookie: ocvnxzaymzn9=5b7236324a59091e1a5542f9e28bf7d1; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: oc_sessionPassphrase=%2Fryq9iU8bLkuLawmkHWozSz97lPfwtT45FVH6%2BvPnZCwKZ9Xo6qjGYQSdZQtwUYXabPclxoeHYxwftLt6CSwG3fgYjb6umvTH3GXgyc%2FrBTL0EzUw4xonrza9mFowhA9; path=/; HttpOnly; SameSite=Lax
+Content-Security-Policy: default-src 'none';
+Set-Cookie: nc_sameSiteCookielax=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=lax
+Set-Cookie: nc_sameSiteCookiestrict=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=strict
+Set-Cookie: ocvnxzaymzn9=5b7236324a59091e1a5542f9e28bf7d1; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: ocvnxzaymzn9=fa172050a693c0aa60d92ca465adfa49; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: cookie_test=test; expires=Fri, 20 Nov 2026 15:11:54 GMT; Max-Age=3600
+X-User-Id: admin
+Allow: OPTIONS, GET, HEAD, DELETE, PROPFIND, PUT, PROPPATCH, COPY, MOVE, REPORT, LOCK, UNLOCK
+Content-Length: 247
+Content-Type: application/xml; charset=utf-8
+
+<?xml version="1.0" encoding="utf-8"?>
+<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+  <s:exception>Sabre\DAV\Exception\MethodNotAllowed</s:exception>
+  <s:message>The resource you tried to create already exists</s:message>
+</d:error>
+

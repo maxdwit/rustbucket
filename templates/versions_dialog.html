@@ -1,0 +1,11 @@
+<div id="versions-state" data-id="{{ id }}" data-path="{{ path }}" hidden></div>
+<div class="head"><h2>Versions of "{{ name }}"</h2><button id="share-close" type="button">Close</button></div>
+<div id="share-msg" role="status"></div>
+<ul class="sharelist">
+  {% for v in versions %}
+  <li data-ts="{{ v.ts }}"><span class="who">{{ v.when }} <span class="muted">{{ v.size }}</span>{% if v.current %} <span class="badge">current</span>{% endif %}</span>
+    <a href="{{ v.download }}" download>Download</a>
+    {% if !v.current %}<button type="button" data-ver="restore" data-ts="{{ v.ts }}">Restore</button>
+    <button type="button" class="danger" data-ver="delete" data-ts="{{ v.ts }}">Delete</button>{% endif %}</li>
+  {% endfor %}
+</ul>

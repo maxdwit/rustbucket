@@ -1,0 +1,30 @@
+# -X PROPFIND -H Depth: 0 http://127.0.0.1:18090/remote.php/dav/files/someoneelse/
+HTTP/1.1 404 Not Found
+Date: Fri, 20 Nov 2026 14:11:56 GMT
+Server: Apache/2.4.71 (Debian)
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-Robots-Tag: noindex, nofollow
+Referrer-Policy: no-referrer
+X-Powered-By: PHP/8.5.13
+Set-Cookie: ocvnxzaymzn9=438d92cd4dd94840f1d4aaa41db62e1e; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: oc_sessionPassphrase=NPbTXgFOGZguvvR3%2BpY1RwMZok2RXhp7M%2F1cyh358XuXcwBvCjn1LMqT5qe4ogrq1m0rxNW5TG35X5OaUZNYJxHWR8%2BMQZiriTJyoawmGsI%2FxEloyRidGujXIO07rFDf; path=/; HttpOnly; SameSite=Lax
+Content-Security-Policy: default-src 'none';
+Set-Cookie: nc_sameSiteCookielax=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=lax
+Set-Cookie: nc_sameSiteCookiestrict=true; path=/; httponly;expires=Fri, 31-Dec-2100 23:59:59 GMT; SameSite=strict
+Set-Cookie: ocvnxzaymzn9=438d92cd4dd94840f1d4aaa41db62e1e; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: ocvnxzaymzn9=d060184ffb92b432fb1f156e20231cff; path=/; HttpOnly; SameSite=Lax
+Set-Cookie: cookie_test=test; expires=Fri, 20 Nov 2026 15:11:56 GMT; Max-Age=3600
+X-User-Id: admin
+Vary: Brief,Prefer
+DAV: 1, 3, extended-mkcol, access-control, calendarserver-principal-property-search, nc-paginate, nextcloud-checksum-update, nc-calendar-search, nc-enable-birthday-calendar, 2
+Content-Length: 233
+Content-Type: application/xml; charset=utf-8
+
+<?xml version="1.0" encoding="utf-8"?>
+<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+  <s:exception>Sabre\DAV\Exception\NotFound</s:exception>
+  <s:message>Principal with name someoneelse not found</s:message>
+</d:error>
+

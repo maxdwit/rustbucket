@@ -1,0 +1,12 @@
+/target
+.env
+/data
+/db
+screenlog.*
+.e2e-uploads
+/fuzz/target
+/fuzz/artifacts
+/fuzz/corpus
+/rustbucket-cert.pem
+lcov.info
+/backups
