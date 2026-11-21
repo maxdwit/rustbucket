@@ -18,11 +18,12 @@ The targets pin the image names, ports, volumes and flags that the scripts and t
 | end-to-end checks | `make smoke` (container over TLS), `make e2e` (real `nextcloudcmd`) | `smoke` needs only docker and curl |
 | backup / restore | `make backup`, `make restore FILE=...` | restore only fills **empty** volumes |
 | check for personal data | `make audit-pii` | run it before every commit |
+| version | `make version`, `make bump-version V=X.Y.Z\|patch\|minor\|major` | version lives in `Cargo.toml`; images are stamped with date + commit by `make image`; bump needs python3 on the host and commits nothing |
 
 Variables you may override: `IMAGE`, `NAME`, `PORT`, `BIND` (`127.0.0.1` by default; `0.0.0.0` serves other devices),
 `TLS_NAMES` (names/addresses clients use; they go into the certificate), `DEST`, `RUST_IMAGE`.
 Do not add a target that bypasses these; extend the Makefile (and `make help`) instead, and keep it working with only
-`make`, `docker`, `curl`, `tar`, `openssl` and `bash` on the host.
+`make`, `docker`, `curl`, `tar`, `openssl` and `bash` on the host (`make bump-version` additionally needs `python3`).
 
 **Destructive targets are the human's decision:** `make purge` (deletes the container and all its data) needs
 `CONFIRM=1`, `make restore` refuses to run over existing data. Do not run them, and do not remove volumes or containers
@@ -53,6 +54,9 @@ Nextcloud 35), `scripts/` (end-to-end, differential, backup, fuzz, soak, smoke),
   `192.0.2.x` (documentation range). `make audit-pii` enforces the mechanical part; the rest is your judgment. Never paste
   a real credential into a file, a log you keep, or a commit.
 - Passwords: stdin or a `_FILE`, never a command-line argument or a committed file.
+- **Changelog:** every change an operator or user can notice (feature, fix, behaviour change) gets an entry in
+  `CHANGELOG.md` in the same commit, and the commit message says the same in a few lines. Describe the problem for a fix, not
+  just the code change.
 - Tests are part of the change: a bug fix gets a regression test that fails without the fix. SQL is literal (sqlx macros),
   never built from strings. Keep `cargo clippy --all-targets -- -D warnings` clean.
 - Compatibility target is Nextcloud **35.x**; behaviour questions are answered by comparing with stock Nextcloud
