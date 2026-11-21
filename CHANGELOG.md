@@ -36,6 +36,7 @@ All notable changes to this public preview. Newest first. The version is the one
 - **`make user ADMIN=0` created administrators**: `$(if $(ADMIN),--admin)` treated any non-empty value as true. Now
   `0`, `no`, `false` and empty mean a normal user; `ADMIN=1` (or any other value) makes an administrator.
 - **Credential files in the working tree**: `.env_*` and `*.env` are git-ignored (`.env.example` stays tracked).
+- The generated SonarQube report (`security_audit.md`, contains local paths) is git-ignored.
 
 ### Changed
 - SonarQube: the reviewed findings that are accepted by design are recorded in `sonar-project.properties`
