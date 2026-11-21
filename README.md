@@ -39,6 +39,7 @@ smoke test, and the test targets (no Rust toolchain is needed on the host, cargo
 | [docs/upgrade.md](docs/upgrade.md) | upgrading and rolling back |
 | [docs/operations.md](docs/operations.md) | health, logs, metrics, disk space, troubleshooting |
 | [docs/security.md](docs/security.md) | security model and hardening |
+| [docs/alpine.md](docs/alpine.md) | the container on Alpine instead of Debian: it works, about 30 % of the size (experiment) |
 | [CHANGELOG.md](CHANGELOG.md) | what changed, including every fix |
 | [CLAUDE.md](CLAUDE.md) | instructions for AI agents (how to use the Makefile, rules for changes) |
 

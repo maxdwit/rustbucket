@@ -2,6 +2,8 @@
 # `make` (or `make help`) lists the targets. AI agents: read CLAUDE.md first.
 
 IMAGE     ?= rustbucket:preview
+# which Dockerfile `make image` / `make smoke` build (docker/Dockerfile.alpine is an experiment, see docs/alpine.md)
+DOCKERFILE ?= Dockerfile
 NAME      ?= rustbucket
 PORT      ?= 8443
 # address the port is published on: localhost only by default; BIND=0.0.0.0 to serve other devices
@@ -19,7 +21,7 @@ BUILD_ARGS = --build-arg PKG_DATE=$$(date -u +%Y%m%d) --build-arg BUILD_DATE=$$(
 
 help:
 	@echo "run it"
-	@echo "  make image            build the image ($(IMAGE)): the server + nginx with a self-signed certificate, one container"
+	@echo "  make image            build the image ($(IMAGE)): the server + nginx with a self-signed certificate, one container  [DOCKERFILE=docker/Dockerfile.alpine: Alpine experiment]"
 	@echo "  make run              build if needed, start the container '$(NAME)' on https://localhost:$(PORT)/"
 	@echo "                        [BIND=127.0.0.1 (0.0.0.0 = reachable from other devices)] [PORT=8443] [TLS_NAMES=localhost,127.0.0.1,files.example.com,192.0.2.10] [NAME=rustbucket]"
 	@echo "  make password         show the generated administrator password (first start only)"
@@ -40,7 +42,7 @@ help:
 	@echo "  make e2e              real Nextcloud sync client against a throw-away server (needs 'nextcloudcmd' on the host)"
 
 image:
-	docker build $(BUILD_ARGS) -t $(IMAGE) .
+	docker build $(BUILD_ARGS) -f $(DOCKERFILE) -t $(IMAGE) .
 
 version:
 	@grep -m1 '^version' Cargo.toml; git describe --always --dirty --abbrev=7 2>/dev/null || true
