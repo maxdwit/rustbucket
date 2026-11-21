@@ -10,3 +10,6 @@ screenlog.*
 /rustbucket-cert.pem
 lcov.info
 /backups
+# local credential files (e.g. .env_nautica.netznacht.de): never commit
+.env_*
+*.env
