@@ -50,6 +50,24 @@ check "GET returns the same bytes" test "$(cv -u "admin:$PW" "$DAV/Fotos%20%C3%8
 check "MOVE (Destination header with the public URL)" test "$(cv -o /dev/null -w '%{http_code}' -X MOVE -u "admin:$PW" -H "Destination: $DAV/moved.bin" "$DAV/Fotos%20%C3%84%C3%B6/big.bin")" = 201
 check "PROPFIND depth 1 lists it" bash -c "$(declare -f cv); W='$W'; cv -X PROPFIND -H 'Depth: 1' -u 'admin:$PW' $DAV/ | grep -q 'moved.bin'"
 
+# Chunked upload (WebDAV chunking v2, what the sync clients use for big files), by hand with curl:
+# MKCOL the session, PUT numbered chunks (out of order, with a gap first), MOVE <session>/.file onto the target.
+echo "== chunked upload through nginx"
+UP="$URL/remote.php/dav/uploads/admin/smoke-chunks-$$"
+head -c 20000000 /dev/urandom > "$W/c.bin"; wantc="$(sha256sum "$W/c.bin" | cut -d' ' -f1)"
+split -b 8000000 -d -a 1 --numeric-suffixes=1 "$W/c.bin" "$W/chunk."      # chunk.1 (8 MB), chunk.2 (8 MB), chunk.3 (4 MB)
+chunk_put() { cv -o /dev/null -w '%{http_code}' -T "$W/chunk.$1" -u "admin:$PW" "$UP/$1"; }
+finish() { cv -o /dev/null -w '%{http_code}' -X MOVE -u "admin:$PW" -H "Destination: $DAV/chunked.bin" -H "OC-Total-Length: 20000000" "$UP/.file"; }
+check "MKCOL opens the upload session" test "$(cv -o /dev/null -w '%{http_code}' -X MKCOL -u "admin:$PW" -H "Destination: $DAV/chunked.bin" "$UP")" = 201
+check "PUT chunk 3 (out of order)" test "$(chunk_put 3)" = 201
+check "PUT chunk 1" test "$(chunk_put 1)" = 201
+code="$(finish)"; check "assembling with chunk 2 missing is refused (got $code)" bash -c "[[ '$code' =~ ^4 ]]"
+check "the target does not exist yet" test "$(cv -o /dev/null -w '%{http_code}' -I -u "admin:$PW" "$DAV/chunked.bin")" = 404
+check "PUT the missing chunk 2" test "$(chunk_put 2)" = 201
+check "MOVE .file assembles the file" test "$(finish)" = 201
+check "the assembled file has the same bytes" test "$(cv -u "admin:$PW" "$DAV/chunked.bin" | sha256sum | cut -d' ' -f1)" = "$wantc"
+check "the upload session is gone afterwards" test "$(cv -o /dev/null -w '%{http_code}' -X PROPFIND -H 'Depth: 0' -u "admin:$PW" "$UP")" = 404
+
 echo "== restart keeps certificate and data, creates no second administrator"
 before="$(fp)"; docker restart "$N" >/dev/null; wait_healthy
 check "same certificate after a restart" test "$(fp)" = "$before"

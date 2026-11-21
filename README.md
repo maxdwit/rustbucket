@@ -44,7 +44,7 @@ smoke test, and the test targets (no Rust toolchain is needed on the host, cargo
 ## Tests
 
 `make check` runs fmt, clippy and the ~130 unit and integration tests; `make smoke` exercises the container over TLS
-(30 MB streamed upload, restart, backup, purge, restore). Further scripts in `scripts/` need extra tools on the host:
+(30 MB streamed upload, chunked upload with a gap, restart, backup, purge, restore). Further scripts in `scripts/` need extra tools on the host:
 `e2e.sh` (real `nextcloudcmd`), `e2e_web.sh` (Chromium), `diff_*.py` (against a stock Nextcloud container),
 `backup_restore_test.sh`, `fuzz.sh` (nightly toolchain, cargo-fuzz), `soak.sh` (10 parallel clients for an hour).
 
