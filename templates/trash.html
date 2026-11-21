@@ -1,5 +1,6 @@
 {% extends "app.html" %}
 {% block title %}Trash{% endblock %}
+{% block side %}{% include "sidebar.html" %}{% endblock %}
 {% block content %}
 <h1>Trash</h1>
 <div id="trash-state" data-count="{{ rows.len() }}" hidden></div>

@@ -15,7 +15,13 @@ input[type=text], input[type=password], input[type=email], select { padding: .45
 .top .brand { font-weight: 700; margin-right: auto; }
 .top form { display: inline; margin: 0; }
 .top button { padding: .3rem .7rem; }
-main { max-width: 70rem; margin: 0 auto; padding: 1rem; min-width: 0; }
+.layout { display: flex; align-items: flex-start; gap: 1rem; max-width: 84rem; margin: 0 auto; padding: 0 1rem; }
+main { flex: 1 1 0; max-width: 70rem; margin: 0 auto; padding: 1rem 0; min-width: 0; }
+.side { flex: 0 0 12.5rem; display: flex; flex-direction: column; gap: .2rem; padding: 1rem 0; }
+.side a { display: flex; align-items: center; gap: .6rem; padding: .5rem .7rem; border-radius: 8px; color: inherit; min-width: 0; }
+.side a:hover { background: #8882; }
+.side a.active { background: var(--accent); color: #fff; }
+.side .icon { flex: none; width: 1.4rem; text-align: center; }
 h1 { font-size: 1.3rem; margin: .2rem 0 1rem; }
 h2 { font-size: 1.1rem; margin: 1.6rem 0 .6rem; }
 .muted { opacity: .7; font-size: .9rem; }
@@ -41,6 +47,7 @@ h2 { font-size: 1.1rem; margin: 1.6rem 0 .6rem; }
 .row .name span.text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .row .thumb, .row .icon { width: 2.2rem; height: 2.2rem; flex: none; border-radius: 6px; object-fit: cover; background: #8882; display: grid; place-items: center; font-size: 1.2rem; }
 .row .meta { font-size: .85rem; opacity: .75; }
+.row .name .sub { flex: 1 1 100%; font-size: .82rem; opacity: .7; overflow-wrap: anywhere; }
 .row .actions { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: flex-end; }
 .row .actions button { padding: .25rem .55rem; font-size: .85rem; }
 .row .badge { font-size: .75rem; padding: .05rem .4rem; border: 1px solid var(--line); border-radius: 999px; opacity: .85; }
@@ -67,7 +74,10 @@ details.edit summary { cursor: pointer; color: var(--accent); }
 .card input { width: 100%; }
 .card button { margin-top: 1.2rem; width: 100%; padding: .7rem; }
 @media (max-width: 40rem) {
-  main { padding: .6rem; }
+  .layout { flex-direction: column; align-items: stretch; gap: 0; padding: 0 .6rem; }
+  .side { flex: none; flex-direction: row; flex-wrap: wrap; gap: .3rem; padding: .6rem 0 0; }
+  .side a { padding: .35rem .6rem; border: 1px solid var(--line); }
+  main { padding: .6rem 0; }
   .row { grid-template-columns: minmax(0, 1fr) auto; }
   .row .name { max-width: 100%; }
   .row .meta.mtime { display: none; }

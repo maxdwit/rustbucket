@@ -1,0 +1,4 @@
+<nav class="side" aria-label="Files">
+  {% for n in nav %}<a href="{{ n.href }}"{% if n.active %} class="active" aria-current="page"{% endif %}><span class="icon" aria-hidden="true">{{ n.icon }}</span><span>{{ n.label }}</span></a>
+  {% endfor %}
+</nav>

@@ -1,7 +1,7 @@
 <div id="files-state" data-dir="{{ dir }}" data-can-create="{% if can_create %}1{% else %}0{% endif %}" hidden></div>
-<h1 class="visually-hidden">Files</h1>
+<h1 class="visually-hidden">{{ root_label }}</h1>
 <nav class="crumbs" aria-label="Path">
-  <a href="/apps/files/" hx-get="/apps/files/" hx-target="#files-root" hx-push-url="true">All files</a>
+  <a href="{{ root_link }}" hx-get="{{ root_link }}" hx-target="#files-root" hx-push-url="true">{{ root_label }}</a>
   {% for c in crumbs %}<span class="sep">/</span><a href="{{ c.link }}" hx-get="{{ c.link }}" hx-target="#files-root" hx-push-url="true">{{ c.name }}</a>{% endfor %}
 </nav>
 {% if let Some(m) = message %}<div class="flash err" role="alert">{{ m }}</div>{% endif %}
@@ -17,13 +17,14 @@
   {% for r in rows %}
   <li class="row" data-path="{{ r.path }}" data-name="{{ r.name }}" data-dir="{% if r.is_dir %}1{% else %}0{% endif %}"{% if r.can_move %} draggable="true"{% endif %}>
     <div class="name">
-      {% if r.is_dir %}<a href="{{ r.link }}" hx-get="{{ r.link }}" hx-target="#files-root" hx-push-url="true">
+      {% if r.is_dir %}<a href="{{ r.link }}"{% if r.boost %} hx-get="{{ r.link }}" hx-target="#files-root" hx-push-url="true"{% endif %}>
       {% else %}<a href="{{ r.download }}" download>{% endif %}
         {% if let Some(t) = r.thumb %}<img class="thumb" loading="lazy" src="{{ t }}" alt="">{% else %}<span class="icon" aria-hidden="true">{{ r.icon }}</span>{% endif %}
         <span class="text">{{ r.name }}</span></a>
       {% if let Some(o) = r.from_owner %}<span class="badge">from {{ o }}</span>{% endif %}
       {% if r.shared_out %}<span class="badge">shared</span>{% endif %}
       {% if r.read_only %}<span class="badge">read-only</span>{% endif %}
+      {% if let Some(s) = r.sub %}<div class="sub">{{ s }}</div>{% endif %}
     </div>
     <span class="meta size">{{ r.size }}</span>
     <span class="meta mtime">{{ r.mtime }}</span>
@@ -36,5 +37,5 @@
     </span>
   </li>
   {% endfor %}
-  {% if rows.is_empty() %}<li class="empty">This folder is empty.</li>{% endif %}
+  {% if rows.is_empty() %}<li class="empty">{{ empty_text }}</li>{% endif %}
 </ul>

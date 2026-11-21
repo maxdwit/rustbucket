@@ -34,7 +34,9 @@ use crate::paths;
 use crate::preview::previewable;
 use crate::propfind;
 use crate::routes::AppState;
-use crate::view::ViewCtx;
+use crate::shares::{self, Resolved, outgoing_list};
+use crate::storage::{FsError, Owner};
+use crate::view::{Item, ViewCtx};
 
 const VER: &str = env!("CARGO_PKG_VERSION");
 const CSRF_COOKIE: &str = "rb_csrf";
@@ -453,6 +455,10 @@ struct Row {
     can_versions: bool,
     can_delete: bool,
     delete_label: &'static str,
+    /// second line under the name (who it is shared with / permission / date), shared views only
+    sub: Option<String>,
+    /// a folder link that stays inside the current view may be loaded in place (HTMX); one that leaves it must not
+    boost: bool,
 }
 
 #[derive(Template)]
@@ -461,6 +467,9 @@ struct FilesInner {
     dir: String,
     can_create: bool,
     can_mkdir: bool,
+    root_label: &'static str,
+    root_link: String,
+    empty_text: &'static str,
     crumbs: Vec<Crumb>,
     message: Option<&'static str>,
     rows: Vec<Row>,
@@ -470,12 +479,113 @@ struct FilesInner {
 #[template(path = "files.html")]
 struct FilesPage {
     chrome: Chrome,
+    nav: Vec<NavItem>,
     inner: String,
 }
 
 #[derive(Deserialize)]
 struct FilesQuery {
     dir: Option<String>,
+    view: Option<String>,
+}
+
+// ---------------------------------------------------------------- left menu and the three file views
+
+/// The views of the file browser: `?view=` in the URL, "mine" when absent or unknown.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NavView {
+    /// my own files (incoming shares are not part of this tree in the web view)
+    Mine,
+    /// what other people shared with me
+    SharedWithMe,
+    /// what I share with others
+    Shared,
+}
+
+impl NavView {
+    fn parse(s: Option<&str>) -> Self {
+        match s {
+            Some("shared-with-me") => Self::SharedWithMe,
+            Some("shared") => Self::Shared,
+            _ => Self::Mine,
+        }
+    }
+    fn key(self) -> &'static str {
+        match self {
+            Self::Mine => "mine",
+            Self::SharedWithMe => "shared-with-me",
+            Self::Shared => "shared",
+        }
+    }
+    fn label(self) -> &'static str {
+        match self {
+            Self::Mine => "My own files",
+            Self::SharedWithMe => "Shared with me",
+            Self::Shared => "Shared",
+        }
+    }
+    fn root_link(self) -> String {
+        match self {
+            Self::Mine => "/apps/files/".to_string(),
+            v => format!("/apps/files/?view={}", v.key()),
+        }
+    }
+    fn empty_text(self) -> &'static str {
+        match self {
+            Self::Mine => "This folder is empty.",
+            Self::SharedWithMe => "Nobody has shared anything with you yet.",
+            Self::Shared => "You have not shared anything yet.",
+        }
+    }
+}
+
+/// Link to folder `dir` (a path in the viewer's tree, leading slash) inside `view`. The "mine" form is the
+/// one that existed before the views did, so old bookmarks keep working.
+fn files_link(view: NavView, dir: &str) -> String {
+    match view {
+        NavView::Mine => format!("/apps/files/?dir={}", enc(dir)),
+        v => format!("/apps/files/?view={}&dir={}", v.key(), enc(dir)),
+    }
+}
+
+struct NavItem {
+    href: &'static str,
+    label: &'static str,
+    icon: &'static str,
+    active: bool,
+}
+
+/// Entries of the left menu; `active` is one of `mine`, `shared-with-me`, `shared`, `trash`.
+fn nav_items(active: &str) -> Vec<NavItem> {
+    [
+        ("mine", "/apps/files/", "My own files", "\u{1F4C1}"),
+        (
+            "shared-with-me",
+            "/apps/files/?view=shared-with-me",
+            "Shared with me",
+            "\u{1F465}",
+        ),
+        ("shared", "/apps/files/?view=shared", "Shared", "\u{1F517}"),
+        ("trash", "/apps/files/trash", "Trash", "\u{1F5D1}"),
+    ]
+    .into_iter()
+    .map(|(key, href, label, icon)| NavItem {
+        href,
+        label,
+        icon,
+        active: key == active,
+    })
+    .collect()
+}
+
+/// "Can view" / "Can edit" like the share dialog; anything else is shown as custom. The share bit is
+/// ignored (resharing does not exist).
+fn perm_label(is_dir: bool, perms: u32) -> String {
+    let base = perms & 15;
+    perm_presets(is_dir)
+        .into_iter()
+        .find(|(v, _)| *v == base)
+        .map_or_else(|| format!("Custom ({perms})"), |(_, l)| l.to_string())
 }
 
 pub fn human_size(n: i64) -> String {
@@ -533,32 +643,220 @@ fn icon_for(mime: &str, is_dir: bool) -> &'static str {
     }
 }
 
+fn sort_rows(rows: &mut [Row]) {
+    rows.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+}
+
+/// One list row for an item the viewer can see. `link` is where a folder row leads.
+fn make_row(w: &Web, it: &Item, link: String, boost: bool) -> Row {
+    let n = &it.node;
+    let l = it
+        .extra
+        .perms
+        .clone()
+        .unwrap_or_else(|| propfind::permissions(n).to_string());
+    let path = format!("/{}", n.path);
+    let root = it.extra.mount_root;
+    Row {
+        link,
+        download: format!(
+            "/remote.php/dav/files/{}/{}",
+            enc(&w.user.uid),
+            enc_path(&n.path)
+        ),
+        thumb: (!n.is_dir && previewable(&n.mimetype))
+            .then(|| format!("/index.php/core/preview.png?fileId={}&x=64&y=64", n.fileid)),
+        icon: icon_for(&n.mimetype, n.is_dir),
+        size: human_size(n.size),
+        mtime: fmt_time(n.mtime),
+        from_owner: root.then(|| it.extra.owner_display.clone()).flatten(),
+        shared_out: !it.extra.shares.is_empty(),
+        read_only: root
+            && if n.is_dir {
+                !l.contains('C')
+            } else {
+                !l.contains('W')
+            },
+        can_rename: l.contains('N'),
+        can_move: l.contains('V'),
+        can_share: it.extra.perms.is_none(),
+        can_versions: !n.is_dir && it.extra.perms.is_none(),
+        can_delete: l.contains('D'),
+        delete_label: if root { "Remove share" } else { "Delete" },
+        is_dir: n.is_dir,
+        name: n.name.clone(),
+        path,
+        sub: None,
+        boost,
+    }
+}
+
+/// "Shared with me": one row per incoming share, wherever the recipient has put the mount.
+fn incoming_rows(w: &Web, vc: &ViewCtx<'_>) -> Vec<Row> {
+    let mut rows: Vec<Row> = vc
+        .mounts
+        .iter()
+        .map(|m| {
+            let it = vc.mount_item(m);
+            let path = format!("/{}", it.node.path);
+            let mut r = make_row(w, &it, files_link(NavView::SharedWithMe, &path), true);
+            r.sub = Some(format!(
+                "{} \u{b7} shared {}",
+                perm_label(m.source.is_dir, m.perms),
+                fmt_time(m.stime)
+            ));
+            r
+        })
+        .collect();
+    sort_rows(&mut rows);
+    rows
+}
+
+/// "Shared": what the viewer shares with others. Folders lead to their real place in "My own files".
+async fn outgoing_rows(
+    st: &AppState,
+    w: &Web,
+    vc: &ViewCtx<'_>,
+    me: &Owner,
+) -> Result<Vec<Row>, FsError> {
+    let mut rows = Vec::new();
+    for o in outgoing_list(&st.store, me.id).await? {
+        let it = vc.item(&Resolved::own(me, &o.node.path), o.node.clone());
+        let path = format!("/{}", it.node.path);
+        let mut r = make_row(w, &it, files_link(NavView::Mine, &path), false);
+        let with = o
+            .recipients
+            .iter()
+            .map(|x| {
+                let who = if x.share_type == shares::TYPE_GROUP {
+                    format!("{} (group)", x.with)
+                } else {
+                    x.display.clone()
+                };
+                format!("{who}: {}", perm_label(o.node.is_dir, x.perms))
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let since = o.recipients.iter().map(|x| x.stime).min().unwrap_or(0);
+        r.sub = Some(format!("with {with} \u{b7} shared {}", fmt_time(since)));
+        rows.push(r);
+    }
+    sort_rows(&mut rows);
+    Ok(rows)
+}
+
+/// Full page, or only the listing when HTMX asks for it.
+fn respond(
+    w: &Web,
+    headers: &HeaderMap,
+    status: StatusCode,
+    inner: FilesInner,
+    active: &str,
+) -> Response {
+    let htmx =
+        headers.contains_key("hx-request") && !headers.contains_key("hx-history-restore-request");
+    if htmx {
+        return render(status, &inner, CSP_APP);
+    }
+    match inner.render() {
+        Ok(html) => render(
+            status,
+            &FilesPage {
+                chrome: Chrome::new(w),
+                nav: nav_items(active),
+                inner: html,
+            },
+            CSP_APP,
+        ),
+        Err(e) => server_error(e),
+    }
+}
+
+/// The top level of "Shared with me" / "Shared": a list, not a folder (nothing can be uploaded into it).
+async fn shared_top(
+    st: &AppState,
+    w: &Web,
+    vc: &ViewCtx<'_>,
+    headers: &HeaderMap,
+    view: NavView,
+    status: StatusCode,
+    message: Option<&'static str>,
+) -> Response {
+    let rows = if view == NavView::Shared {
+        match outgoing_rows(st, w, vc, &owner(&w.user)).await {
+            Ok(r) => r,
+            Err(e) => return server_error(e),
+        }
+    } else {
+        incoming_rows(w, vc)
+    };
+    let inner = FilesInner {
+        dir: "/".to_string(),
+        can_create: false,
+        can_mkdir: false,
+        root_label: view.label(),
+        root_link: view.root_link(),
+        empty_text: view.empty_text(),
+        crumbs: Vec::new(),
+        message,
+        rows,
+    };
+    respond(w, headers, status, inner, view.key())
+}
+
 async fn files(
     State(st): State<AppState>,
     w: Web,
     Query(q): Query<FilesQuery>,
     headers: HeaderMap,
 ) -> Response {
-    let wanted = q.dir.as_deref().unwrap_or("/");
-    let mut message = None;
-    let (dir_path, mut status) = match paths::normalize(wanted) {
-        Ok(p) => (p, StatusCode::OK),
-        Err(_) => (String::new(), StatusCode::OK),
-    };
+    let view = NavView::parse(q.view.as_deref());
+    let dir_path = paths::normalize(q.dir.as_deref().unwrap_or("/")).unwrap_or_default();
     let me = owner(&w.user);
     let vc = match ViewCtx::new(&st.store, &me, &w.user.display_name).await {
         Ok(v) => v,
         Err(e) => return server_error(e),
     };
+    // the two "Shared" views start with a list; only "Shared with me" has folders of its own below it
+    if dir_path.is_empty() && view != NavView::Mine {
+        return shared_top(&st, &w, &vc, &headers, view, StatusCode::OK, None).await;
+    }
+    if view == NavView::Shared {
+        // the folders of that list are my own files
+        return redirect(&files_link(NavView::Mine, &format!("/{dir_path}")));
+    }
+    let mut message = None;
+    let mut status = StatusCode::OK;
     let mut shown = dir_path.clone();
     let mut r = vc.resolve(&shown);
+    if view == NavView::Mine && r.mount.is_some() {
+        // an incoming share is not part of "My own files": show it where it belongs
+        return redirect(&files_link(NavView::SharedWithMe, &format!("/{dir_path}")));
+    }
     let mut node = match st.store.get(&r.owner, &r.path).await {
-        Ok(n) => n.filter(|n| n.is_dir),
+        Ok(n) => n.filter(|n| n.is_dir && (view == NavView::Mine || r.mount.is_some())),
         Err(e) => return server_error(e),
     };
     if node.is_none() {
         // unknown folder (or a file): say so and show the top level instead
-        message = Some("That folder does not exist (any more).");
+        let msg = "That folder does not exist (any more).";
+        if view == NavView::SharedWithMe {
+            return shared_top(
+                &st,
+                &w,
+                &vc,
+                &headers,
+                view,
+                StatusCode::NOT_FOUND,
+                Some(msg),
+            )
+            .await;
+        }
+        message = Some(msg);
         status = StatusCode::NOT_FOUND;
         shown = String::new();
         r = vc.resolve("");
@@ -576,92 +874,51 @@ async fn files(
         .perms
         .clone()
         .unwrap_or_else(|| propfind::permissions(&node).to_string());
-    let kids = match vc.children(&r, &node).await {
+    let kids = match vc.children_opts(&r, &node, false).await {
         Ok(k) => k,
         Err(e) => return server_error(e),
     };
     let mut rows: Vec<Row> = kids
-        .into_iter()
+        .iter()
         .map(|it| {
-            let n = &it.node;
-            let l = it
-                .extra
-                .perms
-                .clone()
-                .unwrap_or_else(|| propfind::permissions(n).to_string());
-            let path = format!("/{}", n.path);
-            let root = it.extra.mount_root;
-            Row {
-                link: format!("/apps/files/?dir={}", enc(&path)),
-                download: format!(
-                    "/remote.php/dav/files/{}/{}",
-                    enc(&w.user.uid),
-                    enc_path(&n.path)
-                ),
-                thumb: (!n.is_dir && previewable(&n.mimetype))
-                    .then(|| format!("/index.php/core/preview.png?fileId={}&x=64&y=64", n.fileid)),
-                icon: icon_for(&n.mimetype, n.is_dir),
-                size: human_size(n.size),
-                mtime: fmt_time(n.mtime),
-                from_owner: root.then(|| it.extra.owner_display.clone()).flatten(),
-                shared_out: !it.extra.shares.is_empty(),
-                read_only: root
-                    && if n.is_dir {
-                        !l.contains('C')
-                    } else {
-                        !l.contains('W')
-                    },
-                can_rename: l.contains('N'),
-                can_move: l.contains('V'),
-                can_share: it.extra.perms.is_none(),
-                can_versions: !n.is_dir && it.extra.perms.is_none(),
-                can_delete: l.contains('D'),
-                delete_label: if root { "Remove share" } else { "Delete" },
-                is_dir: n.is_dir,
-                name: n.name.clone(),
-                path,
-            }
+            make_row(
+                &w,
+                it,
+                files_link(view, &format!("/{}", it.node.path)),
+                true,
+            )
         })
         .collect();
-    rows.sort_by(|a, b| {
-        b.is_dir
-            .cmp(&a.is_dir)
-            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-    });
+    sort_rows(&mut rows);
+    // below "Shared with me" the path starts at the share itself, not at the folders above where it is mounted
+    let skip = match (&r.mount, view) {
+        (Some(m), NavView::SharedWithMe) => m.target.split('/').count() - 1,
+        _ => 0,
+    };
     let mut crumbs = Vec::new();
     let mut acc = String::new();
-    for part in shown.split('/').filter(|p| !p.is_empty()) {
+    for (i, part) in shown.split('/').filter(|p| !p.is_empty()).enumerate() {
         acc.push('/');
         acc.push_str(part);
-        crumbs.push(Crumb {
-            name: part.to_string(),
-            link: format!("/apps/files/?dir={}", enc(&acc)),
-        });
+        if i >= skip {
+            crumbs.push(Crumb {
+                name: part.to_string(),
+                link: files_link(view, &acc),
+            });
+        }
     }
     let inner = FilesInner {
         dir: format!("/{shown}"),
         can_create: letters.contains('C'),
         can_mkdir: letters.contains('K'),
+        root_label: view.label(),
+        root_link: view.root_link(),
+        empty_text: view.empty_text(),
         crumbs,
         message,
         rows,
     };
-    let htmx =
-        headers.contains_key("hx-request") && !headers.contains_key("hx-history-restore-request");
-    if htmx {
-        return render(status, &inner, CSP_APP);
-    }
-    match inner.render() {
-        Ok(html) => render(
-            status,
-            &FilesPage {
-                chrome: Chrome::new(&w),
-                inner: html,
-            },
-            CSP_APP,
-        ),
-        Err(e) => server_error(e),
-    }
+    respond(&w, &headers, status, inner, view.key())
 }
 
 fn server_error(e: impl std::fmt::Debug) -> Response {
@@ -801,6 +1058,7 @@ struct TrashRow {
 #[template(path = "trash.html")]
 struct TrashPage {
     chrome: Chrome,
+    nav: Vec<NavItem>,
     rows: Vec<TrashRow>,
     retention: u32,
 }
@@ -825,6 +1083,7 @@ async fn trash_page(State(st): State<AppState>, w: Web) -> Response {
         StatusCode::OK,
         &TrashPage {
             chrome: Chrome::new(&w),
+            nav: nav_items("trash"),
             rows,
             retention: st.config.trash_retention_days,
         },

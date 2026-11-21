@@ -1,5 +1,6 @@
 {% extends "app.html" %}
 {% block title %}Files{% endblock %}
+{% block side %}{% include "sidebar.html" %}{% endblock %}
 {% block content %}
 <div id="uploads" class="uploads" aria-live="polite"></div>
 <div id="files-root">{{ inner|safe }}</div>

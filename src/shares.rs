@@ -393,6 +393,64 @@ pub async fn outgoing_by_node(
     Ok(m)
 }
 
+/// One recipient of a share the viewer made.
+#[derive(Debug, Clone)]
+pub struct Recipient {
+    pub share_type: i64,
+    /// uid or gid
+    pub with: String,
+    /// display name for a user, the gid for a group
+    pub display: String,
+    pub perms: u32,
+    pub stime: i64,
+}
+
+/// An item the viewer shares, with everybody it is shared with.
+#[derive(Debug, Clone)]
+pub struct Outgoing {
+    /// The shared node in the owner's own tree.
+    pub node: Node,
+    pub recipients: Vec<Recipient>,
+}
+
+/// Everything `owner_id` shares with others, one entry per shared item (oldest share first).
+/// Items that no longer resolve are left out.
+pub async fn outgoing_list(store: &Store, owner_id: i64) -> Result<Vec<Outgoing>, FsError> {
+    let rows: Vec<(i64, i64, String, Option<String>, i64, i64)> = sqlx::query_as(
+        "SELECT s.file_source, s.share_type, s.share_with, u.display_name, s.permissions, s.stime \
+         FROM shares s LEFT JOIN users u ON s.share_type = 0 AND u.uid = s.share_with \
+         WHERE s.owner_id = $1 ORDER BY s.id",
+    )
+    .bind(owner_id)
+    .fetch_all(store.pool())
+    .await?;
+    let mut order: Vec<i64> = Vec::new();
+    let mut by_node: HashMap<i64, Vec<Recipient>> = HashMap::new();
+    for (node, ty, with, display, perms, stime) in rows {
+        let list = by_node.entry(node).or_insert_with(|| {
+            order.push(node);
+            Vec::new()
+        });
+        list.push(Recipient {
+            share_type: ty,
+            display: display.unwrap_or_else(|| with.clone()),
+            with,
+            perms: perms as u32 & ALL,
+            stime,
+        });
+    }
+    let mut out = Vec::new();
+    for id in order {
+        if let Some(node) = store.node_by_id(id).await? {
+            out.push(Outgoing {
+                recipients: by_node.remove(&id).unwrap_or_default(),
+                node,
+            });
+        }
+    }
+    Ok(out)
+}
+
 impl Store {
     /// The recipient removes a share from their own view. User shares are deleted (stock does the
     /// same); group shares are hidden for this user only. Never touches the owner's files.

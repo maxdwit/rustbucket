@@ -100,6 +100,17 @@ impl<'a> ViewCtx<'a> {
 
     /// Direct children of `dir` (resolved by `r`): its own children plus mounts placed directly in it.
     pub async fn children(&self, r: &Resolved, dir: &Node) -> Result<Vec<Item>, FsError> {
+        self.children_opts(r, dir, true).await
+    }
+
+    /// Like `children`; with `with_mounts: false` only the owner's own entries are returned (the
+    /// web UI's "My own files" view - incoming shares live under "Shared with me" there).
+    pub async fn children_opts(
+        &self,
+        r: &Resolved,
+        dir: &Node,
+        with_mounts: bool,
+    ) -> Result<Vec<Item>, FsError> {
         let mut out: Vec<Item> = self
             .store
             .children(dir)
@@ -107,7 +118,7 @@ impl<'a> ViewCtx<'a> {
             .into_iter()
             .map(|n| self.item(r, n))
             .collect();
-        if r.mount.is_none() {
+        if with_mounts && r.mount.is_none() {
             for m in &self.mounts {
                 if paths::split(&m.target).0 == dir.path {
                     out.retain(|i| i.node.path != m.target); // a mount shadows an item of the same name

@@ -278,7 +278,7 @@ async fn browser_login_upload_rename_move_share_delete_logout() -> WebDriverResu
                 .await?
                 .contains("Docs")
         );
-        d.find(By::Css(".crumbs a")).await?.click().await?; // "All files"
+        d.find(By::Css(".crumbs a")).await?.click().await?; // the root crumb, "My own files"
         wait_for(&d, &row("Docs")).await?;
 
         // share the folder with alice from the dialog
@@ -417,6 +417,116 @@ async fn browser_login_upload_rename_move_share_delete_logout() -> WebDriverResu
     result
 }
 
+/// Write files straight to disk for `uid` and let a scan index them (what `rustbucket scan` does).
+async fn seed(s: &Server, uid: &str, files: &[(&str, &str)]) {
+    std::fs::create_dir_all(&s.data).unwrap();
+    std::fs::write(s.data.join(".rustbucket-data"), "").unwrap();
+    for (rel, body) in files {
+        let p = s.data.join(uid).join("files").join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, body).unwrap();
+    }
+    let id: i64 = sqlx::query_scalar("SELECT id FROM users WHERE uid = $1")
+        .bind(uid)
+        .fetch_one(&s.pool)
+        .await
+        .unwrap();
+    rustbucket::storage::Store::new(s.pool.clone(), s.data.clone())
+        .scan(
+            &rustbucket::storage::Owner {
+                id,
+                uid: uid.into(),
+            },
+            false,
+            false,
+        )
+        .await
+        .unwrap();
+}
+
+async fn active_menu(d: &WebDriver) -> WebDriverResult<String> {
+    Ok(d.find(By::Css(".side a.active span:last-child"))
+        .await?
+        .text()
+        .await?
+        .trim()
+        .to_string())
+}
+
+/// The left menu in a real browser: switching between "My own files", "Shared with me" and "Shared".
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs chromedriver + chromium: run scripts/e2e_web.sh"]
+async fn browser_left_menu_switches_between_own_incoming_and_outgoing_shares() -> WebDriverResult<()>
+{
+    let s = start().await;
+    seed(
+        &s,
+        "alice",
+        &[("Reports/q1.txt", "numbers"), ("readme.txt", "r")],
+    )
+    .await;
+    seed(&s, "bob", &[("mine.txt", "m")]).await;
+    // alice shares Reports with bob (read only)
+    sqlx::query(
+        "INSERT INTO shares (share_type, owner_id, file_source, share_with, permissions, stime) \
+         SELECT 0, u.id, f.fileid, 'bob', 1, 1700000000 FROM file_cache f, users u WHERE f.name = 'Reports' AND u.uid = 'alice'",
+    )
+    .execute(&s.pool)
+    .await
+    .unwrap();
+    let d = driver(1280, 900).await?;
+    let result = async {
+        // ---- bob
+        login(&d, &s.base, "bob", "pw-bob").await?;
+        wait_for(&d, &row("mine.txt")).await?;
+        assert_eq!(active_menu(&d).await?, "My own files");
+        assert!(d.find_all(By::Css(row("Reports"))).await?.is_empty(), "incoming shares are not in My own files");
+        // the menu is a column on the left on a desktop
+        let x: i64 = d.execute("return Math.round(document.querySelector('.side').getBoundingClientRect().right <= document.querySelector('main').getBoundingClientRect().left);", vec![]).await?.convert()?;
+        assert_eq!(x, 1, "the menu sits left of the file list");
+
+        d.find(By::Css(".side a[href*='shared-with-me']")).await?.click().await?;
+        wait_for(&d, &row("Reports")).await?;
+        assert_eq!(active_menu(&d).await?, "Shared with me");
+        assert!(d.find_all(By::Css(row("mine.txt"))).await?.is_empty());
+        assert!(d.find(By::Css(row("Reports"))).await?.text().await?.contains("from Alice A"));
+        assert!(d.find(By::Css("#btn-upload")).await?.attr("disabled").await?.is_some(), "no upload into a list");
+        // into the share: in place (HTMX), the menu keeps pointing at "Shared with me"
+        d.find(By::Css(format!("{} .name a", row("Reports")))).await?.click().await?;
+        wait_for(&d, &row("q1.txt")).await?;
+        assert_eq!(active_menu(&d).await?, "Shared with me");
+        assert!(d.find(By::Css(".crumbs")).await?.text().await?.contains("Reports"));
+        // the root crumb leads back to the list
+        d.find(By::Css(".crumbs a")).await?.click().await?;
+        wait_for(&d, &row("Reports")).await?;
+        d.find(By::Css(".side a[href='/apps/files/?view=shared']")).await?.click().await?;
+        wait_for(&d, ".list .empty").await?;
+        assert_eq!(d.find(By::Css(".list .empty")).await?.text().await?, "You have not shared anything yet.");
+        d.find(By::Css(".side a[href='/apps/files/trash']")).await?.click().await?;
+        wait_for(&d, "#trashlist").await?;
+        assert_eq!(active_menu(&d).await?, "Trash");
+        d.find(By::Css("header form[action='/logout'] button")).await?.click().await?;
+        wait_for(&d, "input[name=username]").await?;
+
+        // ---- alice sees what she shares, and who with
+        login(&d, &s.base, "alice", "pw-alice").await?;
+        d.find(By::Css(".side a[href='/apps/files/?view=shared']")).await?.click().await?;
+        wait_for(&d, &row("Reports")).await?;
+        assert_eq!(active_menu(&d).await?, "Shared");
+        let t = d.find(By::Css(row("Reports"))).await?.text().await?;
+        assert!(t.contains("with Bob B: Can view"), "{t}");
+        assert!(d.find_all(By::Css(row("readme.txt"))).await?.is_empty(), "only shared items are listed");
+        // a folder leads to the real place in My own files (a full page load, the menu follows)
+        d.find(By::Css(format!("{} .name a", row("Reports")))).await?.click().await?;
+        wait_for(&d, &row("q1.txt")).await?;
+        assert_eq!(active_menu(&d).await?, "My own files");
+        Ok::<(), WebDriverError>(())
+    }
+    .await;
+    d.quit().await?;
+    result
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs chromedriver + chromium: run scripts/e2e_web.sh"]
 async fn browser_at_phone_width_does_not_scroll_sideways() -> WebDriverResult<()> {
@@ -458,7 +568,9 @@ async fn browser_at_phone_width_does_not_scroll_sideways() -> WebDriverResult<()
         // the action buttons are reachable (not clipped away) on a phone
         let w: i64 = d.execute("const b=document.querySelector('.row .actions button'); const r=b.getBoundingClientRect(); return Math.round(r.right);", vec![]).await?.convert()?;
         assert!(w <= 390, "buttons run off the screen: {w}");
-        for (path, what) in [("/apps/files/trash", "trash"), ("/settings/user", "settings"), ("/settings/users", "admin"), ("/login", "login")] {
+        let dir: String = d.execute("return getComputedStyle(document.querySelector('.side')).flexDirection;", vec![]).await?.convert()?;
+        assert_eq!(dir, "row", "the left menu becomes a row on a phone");
+        for (path, what) in [("/apps/files/?view=shared-with-me", "shared with me"), ("/apps/files/?view=shared", "shared"), ("/apps/files/trash", "trash"), ("/settings/user", "settings"), ("/settings/users", "admin"), ("/login", "login")] {
             if path == "/login" {
                 d.find(By::Css("header form[action='/logout'] button")).await?.click().await?;
                 wait_for(&d, "input[name=username]").await?;

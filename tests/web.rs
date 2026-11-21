@@ -559,7 +559,7 @@ async fn shared_items_show_owner_and_hide_actions_that_would_be_refused() {
         assert_eq!(r.status, StatusCode::OK, "{}", r.body);
     }
     let sid = login(&e, "bob", "pw-bob").await;
-    let top = get(&e, &sid, "/apps/files/").await.body;
+    let top = get(&e, &sid, "/apps/files/?view=shared-with-me").await.body;
     let row = |body: &str, name: &str| {
         let s = &body[body.find(&format!("data-name=\"{name}\"")).unwrap()..];
         s[..s.find("</li>").unwrap()].to_string()
@@ -575,7 +575,9 @@ async fn shared_items_show_owner_and_hide_actions_that_would_be_refused() {
     );
     assert!(row(&top, "rw").contains("from Alice A") && !row(&top, "rw").contains("read-only"));
     // inside the read-only share: no upload, no new folder, no rename/move/delete on the file
-    let inside = get(&e, &sid, "/apps/files/?dir=%2Fro").await.body;
+    let inside = get(&e, &sid, "/apps/files/?view=shared-with-me&dir=%2Fro")
+        .await
+        .body;
     assert!(
         inside.contains("id=\"btn-upload\" type=\"button\" class=\"primary\" disabled")
             && inside.contains("id=\"btn-newfolder\" type=\"button\" disabled"),
@@ -591,7 +593,7 @@ async fn shared_items_show_owner_and_hide_actions_that_would_be_refused() {
     );
     // the read-write share allows creating
     assert!(
-        get(&e, &sid, "/apps/files/?dir=%2Frw")
+        get(&e, &sid, "/apps/files/?view=shared-with-me&dir=%2Frw")
             .await
             .body
             .contains("data-can-create=\"1\"")
@@ -611,6 +613,210 @@ async fn shared_items_show_owner_and_hide_actions_that_would_be_refused() {
     assert_eq!(
         get(&e, &asid, "/ui/share?path=%2Fnope").await.status,
         StatusCode::NOT_FOUND
+    );
+}
+
+/// Text of the one highlighted entry of the left menu.
+fn active_nav(body: &str) -> String {
+    assert_eq!(
+        body.matches("aria-current=\"page\"").count(),
+        1,
+        "exactly one active menu entry"
+    );
+    let i = body.find("aria-current=\"page\"").unwrap();
+    let a = &body[i..i + body[i..].find("</a>").unwrap()];
+    a.rsplit("<span>")
+        .next()
+        .unwrap()
+        .trim_end_matches("</span>")
+        .to_string()
+}
+
+async fn share_with(e: &Env, owner: &str, path: &str, ty: &str, with: &str, perms: &str) {
+    let r = send(
+        e,
+        "POST",
+        "/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json",
+        &[basic(owner, &format!("pw-{owner}")), form_ct()],
+        &form(&[
+            ("shareType", ty),
+            ("shareWith", with),
+            ("path", path),
+            ("permissions", perms),
+        ]),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+}
+
+/// The left menu: "My own files", "Shared with me" and "Shared" are separate views of the same tree.
+#[tokio::test]
+async fn left_menu_and_the_three_file_views() {
+    let e = env().await;
+    db::create_group(&e.pool, "team").await.unwrap();
+    db::add_member(&e.pool, "team", "bob").await.unwrap();
+    for (m, p, b) in [
+        ("MKCOL", "/Photos", ""),
+        ("MKCOL", "/Photos/sub", ""),
+        ("PUT", "/Photos/sub/deep.txt", "d"),
+        ("PUT", "/note.txt", "n"),
+        ("PUT", "/private.txt", "p"),
+        ("PUT", "/a%26b%20%3Ci%3E.txt", "h"),
+    ] {
+        assert!(dav(&e, "alice", m, p, b).await.is_success(), "{m} {p}");
+    }
+    assert!(dav(&e, "bob", "PUT", "/mine.txt", "m").await.is_success());
+    share_with(&e, "alice", "/Photos", "0", "bob", "1").await;
+    share_with(&e, "alice", "/note.txt", "1", "team", "3").await;
+    share_with(&e, "alice", "/a&b <i>.txt", "0", "bob", "1").await;
+
+    // ---- bob
+    let bob = login(&e, "bob", "pw-bob").await;
+    let mine = get(&e, &bob, "/apps/files/").await.body;
+    assert_eq!(active_nav(&mine), "My own files");
+    for l in [
+        "href=\"/apps/files/\"",
+        "href=\"/apps/files/?view=shared-with-me\"",
+        "href=\"/apps/files/?view=shared\"",
+        "href=\"/apps/files/trash\"",
+    ] {
+        assert!(mine.contains(l), "menu entry {l}");
+    }
+    assert!(mine.contains("data-name=\"mine.txt\""));
+    assert!(
+        !mine.contains("data-name=\"Photos\"") && !mine.contains("data-name=\"note.txt\""),
+        "incoming shares are not part of 'My own files'"
+    );
+    // an unknown view is "mine"
+    let bogus = get(&e, &bob, "/apps/files/?view=bogus").await.body;
+    assert_eq!(active_nav(&bogus), "My own files");
+    assert!(bogus.contains("data-name=\"mine.txt\""));
+
+    let swm = get(&e, &bob, "/apps/files/?view=shared-with-me").await.body;
+    assert_eq!(active_nav(&swm), "Shared with me");
+    assert!(swm.contains("data-can-create=\"0\"") && !swm.contains("data-name=\"mine.txt\""));
+    let row = |body: &str, name: &str| {
+        let s = &body[body.find(&format!("data-name=\"{name}\"")).unwrap()..];
+        s[..s.find("</li>").unwrap()].to_string()
+    };
+    let photos = row(&swm, "Photos");
+    assert!(
+        photos.contains("from Alice A")
+            && photos.contains("Can view \u{b7} shared ")
+            && photos.contains("hx-get=\"/apps/files/?view=shared-with-me&#38;dir=%2FPhotos\""),
+        "{photos}"
+    );
+    assert!(row(&swm, "note.txt").contains("Can edit \u{b7} shared "));
+    assert!(
+        swm.contains("a&#38;b &#60;i&#62;.txt") && !swm.contains("<i>"),
+        "names are escaped in the list"
+    );
+    // below a share: its own folder view, crumbs start at the share
+    let sub = get(
+        &e,
+        &bob,
+        "/apps/files/?view=shared-with-me&dir=%2FPhotos%2Fsub",
+    )
+    .await;
+    assert_eq!(sub.status, StatusCode::OK);
+    assert!(sub.body.contains("data-name=\"deep.txt\""));
+    assert_eq!(active_nav(&sub.body), "Shared with me");
+    assert!(
+        sub.body.contains(">Shared with me</a>")
+            && sub.body.contains(">Photos</a>")
+            && sub.body.contains(">sub</a>")
+            && sub.body.contains("data-can-create=\"0\""),
+        "{}",
+        sub.body
+    );
+    // a share's path in "My own files" goes to where it belongs; a non-share path is not a folder of that view
+    let r = get(&e, &bob, "/apps/files/?dir=%2FPhotos").await;
+    assert_eq!(r.status, StatusCode::SEE_OTHER);
+    assert_eq!(
+        r.h("location"),
+        "/apps/files/?view=shared-with-me&dir=%2FPhotos"
+    );
+    let r = get(&e, &bob, "/apps/files/?view=shared-with-me&dir=%2Fnope").await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND);
+    assert!(
+        r.body.contains("That folder does not exist") && r.body.contains("data-name=\"Photos\"")
+    );
+    // nothing shared by bob
+    let none = get(&e, &bob, "/apps/files/?view=shared").await.body;
+    assert_eq!(active_nav(&none), "Shared");
+    assert!(none.contains("You have not shared anything yet."));
+    // the other pages: trash is in the menu, settings has none
+    assert_eq!(
+        active_nav(&get(&e, &bob, "/apps/files/trash").await.body),
+        "Trash"
+    );
+    assert!(
+        !get(&e, &bob, "/settings/user")
+            .await
+            .body
+            .contains("class=\"side\"")
+    );
+    // sync clients still see the shares at the root: only the web view changed
+    let pf = send(
+        &e,
+        "PROPFIND",
+        "/remote.php/dav/files/bob/",
+        &[basic("bob", "pw-bob"), ("depth", "1".to_string())],
+        "",
+    )
+    .await;
+    assert!(
+        pf.body.contains("/Photos/") && pf.body.contains("note.txt"),
+        "{}",
+        pf.body
+    );
+
+    // ---- alice: what she shares
+    let alice = login(&e, "alice", "pw-alice").await;
+    let shared = get(&e, &alice, "/apps/files/?view=shared").await.body;
+    assert_eq!(active_nav(&shared), "Shared");
+    assert!(
+        shared.contains("data-can-create=\"0\"") && !shared.contains("data-name=\"private.txt\"")
+    );
+    let photos = row(&shared, "Photos");
+    assert!(
+        photos.contains("with Bob B: Can view \u{b7} shared ")
+            && photos.contains("href=\"/apps/files/?dir=%2FPhotos\"")
+            && !photos.contains("hx-get"),
+        "folders lead to the real place in My own files: {photos}"
+    );
+    assert!(row(&shared, "note.txt").contains("with team (group): Can edit"));
+    assert!(shared.contains("a&#38;b &#60;i&#62;.txt") && !shared.contains("<i>"));
+    let r = get(&e, &alice, "/apps/files/?view=shared&dir=%2FPhotos").await;
+    assert_eq!(r.status, StatusCode::SEE_OTHER);
+    assert_eq!(r.h("location"), "/apps/files/?dir=%2FPhotos");
+    // unsharing removes it from both lists
+    let id: i64 = sqlx::query_scalar(
+        "SELECT s.id FROM shares s JOIN file_cache f ON f.fileid = s.file_source WHERE f.name = 'Photos'",
+    )
+    .fetch_one(&e.pool)
+    .await
+    .unwrap();
+    let del = send(
+        &e,
+        "DELETE",
+        &format!("/ocs/v2.php/apps/files_sharing/api/v1/shares/{id}?format=json"),
+        &[basic("alice", "pw-alice")],
+        "",
+    )
+    .await;
+    assert_eq!(del.status, StatusCode::OK, "{}", del.body);
+    assert!(
+        !get(&e, &alice, "/apps/files/?view=shared")
+            .await
+            .body
+            .contains("data-name=\"Photos\"")
+    );
+    assert!(
+        !get(&e, &bob, "/apps/files/?view=shared-with-me")
+            .await
+            .body
+            .contains("data-name=\"Photos\"")
     );
 }
 

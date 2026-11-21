@@ -13,14 +13,15 @@
 <body>
 <header class="top">
   <a class="brand" href="/apps/files/">rustbucket</a>
-  <a href="/apps/files/">Files</a>
-  <a href="/apps/files/trash">Trash</a>
   <a href="/settings/user">{{ chrome.display }}</a>
   {% if chrome.is_admin %}<a href="/settings/users">Users</a>{% endif %}
   <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ chrome.csrf }}"><button type="submit">Sign out</button></form>
 </header>
+<div class="layout">
+{% block side %}{% endblock %}
 <main id="main" data-user="{{ chrome.uid }}" data-dav="/remote.php/dav/files/{{ chrome.uid_enc }}" data-uploads="/remote.php/dav/uploads/{{ chrome.uid_enc }}" data-trash="/remote.php/dav/trashbin/{{ chrome.uid_enc }}" data-versions="/remote.php/dav/versions/{{ chrome.uid_enc }}">
 {% block content %}{% endblock %}
 </main>
+</div>
 </body>
 </html>
