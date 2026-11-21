@@ -64,7 +64,7 @@ user:
 	@test -n "$(U)" || { echo "usage: make user U=bob [ADMIN=1] [FULLNAME='Bob B']"; exit 2; }
 	@read -r -s -p "Password for $(U): " pw; echo; read -r -s -p "Again: " pw2; echo; \
 	[ -n "$$pw" ] && [ "$$pw" = "$$pw2" ] || { echo "passwords empty or different"; exit 1; }; \
-	printf '%s\n' "$$pw" | docker exec -i $(NAME) rustbucket user create '$(U)' $(if $(ADMIN),--admin) $(if $(FULLNAME),--display-name '$(FULLNAME)')
+	printf '%s\n' "$$pw" | docker exec -i $(NAME) rustbucket user create '$(U)' $(if $(filter-out 0 no false,$(ADMIN)),--admin) $(if $(FULLNAME),--display-name '$(FULLNAME)')
 
 cert:
 	docker cp $(NAME):/certs/tls.crt ./rustbucket-cert.pem
