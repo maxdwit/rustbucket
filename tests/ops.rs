@@ -237,7 +237,13 @@ async fn metrics_need_a_configured_token() {
     assert!(
         ok.body
             .contains("# TYPE rustbucket_http_responses_total counter")
-            && ok.body.contains("rustbucket_build_info{version=\"")
+            && ok.body.contains(&format!(
+                "rustbucket_build_info{{version=\"{}\",build_date=\"{}\",commit=\"{}\",build_id=\"{}\"}} 1",
+                rustbucket::buildinfo::get().version,
+                rustbucket::buildinfo::get().build_date,
+                rustbucket::buildinfo::get().commit,
+                rustbucket::buildinfo::get().hash
+            ))
     );
     assert!(
         ok.body.contains("rustbucket_data_free_bytes")

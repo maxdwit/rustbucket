@@ -38,7 +38,6 @@ use crate::shares::{self, Resolved, outgoing_list};
 use crate::storage::{FsError, Owner};
 use crate::view::{Item, ViewCtx};
 
-const VER: &str = env!("CARGO_PKG_VERSION");
 const CSRF_COOKIE: &str = "rb_csrf";
 
 /// App pages: scripts and styles only from this origin, nothing inline.
@@ -86,6 +85,7 @@ pub fn router() -> Router<AppState> {
             "/settings/user/app-passwords/{id}/delete",
             post(app_password_delete),
         )
+        .route("/settings/about", get(about_page))
         .route("/settings/users", get(users_page).post(user_create))
         .route("/settings/users/{uid}", post(user_edit))
         .route("/settings/groups", post(group_create))
@@ -227,7 +227,8 @@ impl FromRequestParts<AppState> for Admin {
 #[derive(Clone)]
 struct Chrome {
     csrf: String,
-    ver: &'static str,
+    /// the running build; its id keys the asset links, so a new build is never served stale scripts
+    build: &'static crate::buildinfo::BuildInfo,
     uid: String,
     uid_enc: String,
     display: String,
@@ -238,7 +239,7 @@ impl Chrome {
     fn new(w: &Web) -> Self {
         Self {
             csrf: w.csrf.clone(),
-            ver: VER,
+            build: crate::buildinfo::get(),
             uid: w.user.uid.clone(),
             uid_enc: enc(&w.user.uid),
             display: w.user.display_name.clone(),
@@ -1425,6 +1426,39 @@ struct GroupLine {
     gid_enc: String,
     members: Vec<MemberLine>,
     candidates: Vec<Candidate>,
+}
+
+#[derive(Template)]
+#[template(path = "about.html")]
+struct AboutPage {
+    chrome: Chrome,
+    nextcloud: String,
+    uptime: String,
+}
+
+/// "3 days 4 h 12 min" / "12 min" / "45 s"
+fn fmt_uptime(secs: u64) -> String {
+    let (d, h, m) = (secs / 86_400, secs % 86_400 / 3_600, secs % 3_600 / 60);
+    match (d, h, m) {
+        (0, 0, 0) => format!("{secs} s"),
+        (0, 0, m) => format!("{m} min"),
+        (0, h, m) => format!("{h} h {m} min"),
+        (d, h, m) => format!("{d} days {h} h {m} min"),
+    }
+}
+
+/// Version and build number of the running server (admins only, like the other pages under /settings/users).
+async fn about_page(State(st): State<AppState>, Admin(w): Admin) -> Response {
+    use crate::routes::{NC_MAJOR, NC_MICRO, NC_MINOR};
+    render(
+        StatusCode::OK,
+        &AboutPage {
+            chrome: Chrome::new(&w),
+            nextcloud: format!("{NC_MAJOR}.{NC_MINOR}.{NC_MICRO}"),
+            uptime: fmt_uptime(st.metrics.uptime_secs()),
+        },
+        CSP_APP,
+    )
 }
 
 #[derive(Template)]

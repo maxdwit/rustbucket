@@ -17,6 +17,12 @@ FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f0
 RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin rustbucket \
     && mkdir /data /db && chown rustbucket /data /db
 COPY --from=build /src/target/release/rustbucket /usr/local/bin/rustbucket
+# build number: `make image` passes both (UTC date and short git commit); without them the server shows "dev" (kept
+# after the COPY so the expensive layers stay cached)
+ARG BUILD_DATE=unknown
+ARG GIT_COMMIT=unknown
+ENV RUSTBUCKET_BUILD_DATE=${BUILD_DATE} RUSTBUCKET_BUILD_COMMIT=${GIT_COMMIT}
+LABEL org.opencontainers.image.created=${BUILD_DATE} org.opencontainers.image.revision=${GIT_COMMIT}
 USER rustbucket
 ENV RUSTBUCKET_DATA_DIR=/data RUSTBUCKET_DATABASE_URL=sqlite:///db/rustbucket.db
 VOLUME ["/data", "/db"]

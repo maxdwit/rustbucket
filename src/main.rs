@@ -40,6 +40,8 @@ enum Cmd {
     Backup { dest: PathBuf },
     /// Probe /health on the local listener (for container HEALTHCHECK).
     Healthcheck,
+    /// Print version and build number (what Admin > About shows).
+    Version,
     #[command(subcommand)]
     User(UserCmd),
     #[command(subcommand)]
@@ -139,6 +141,14 @@ async fn main() -> anyhow::Result<()> {
     init_logging(cfg.log_json);
 
     match cli.cmd {
+        Cmd::Version => {
+            let b = rustbucket::buildinfo::get();
+            println!("rustbucket {}", b.version);
+            println!("build date: {} ({})", b.build_date_display(), b.build_date);
+            println!("commit:     {}", b.commit);
+            println!("build id:   {}", b.hash);
+            Ok(())
+        }
         Cmd::Healthcheck => healthcheck(&cfg).await,
         Cmd::Scan {
             uid,

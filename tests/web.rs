@@ -901,6 +901,61 @@ async fn share_icon_in_front_menu_behind_and_the_multi_select_markup() {
     );
 }
 
+/// The build number: Admin menu (Users, About, version line), the About page, the build id in the asset links.
+#[tokio::test]
+async fn admin_menu_about_page_and_the_build_id_in_asset_links() {
+    let e = env().await;
+    let b = rustbucket::buildinfo::get();
+    let admin = login(&e, "admin", "pw-admin").await;
+    let page = get(&e, &admin, "/apps/files/").await.body;
+    assert!(page.contains("<summary>Admin</summary>"), "{page}");
+    assert!(page.contains("href=\"/settings/users\"") && page.contains("href=\"/settings/about\""));
+    assert!(
+        page.contains(&format!(
+            "<div class=\"menu-version\" title=\"Version and build number\">{}</div>",
+            b.short()
+        )),
+        "the version line is in the Admin menu"
+    );
+    assert!(
+        b.short()
+            .starts_with(&format!("v{}", env!("CARGO_PKG_VERSION")))
+    );
+    // the assets are keyed by the build id: a new build is never served stale scripts and styles
+    for a in ["app.css", "htmx.min.js", "app.js"] {
+        assert!(page.contains(&format!("/static/{a}?v={}", b.hash)), "{a}");
+    }
+    // the About page
+    let about = get(&e, &admin, "/settings/about").await;
+    assert_eq!(about.status, StatusCode::OK);
+    for t in [
+        b.version,
+        b.hash.as_str(),
+        b.commit.as_str(),
+        "Build id",
+        "Running for",
+        "35.0.1",
+    ] {
+        assert!(about.body.contains(t), "{t}");
+    }
+    // a normal user has neither the menu nor the page; not signed in is treated like the other admin pages
+    let bob = login(&e, "bob", "pw-bob").await;
+    let nav = get(&e, &bob, "/apps/files/").await.body;
+    assert!(
+        !nav.contains("Admin</summary>")
+            && !nav.contains("/settings/about")
+            && !nav.contains("menu-version")
+    );
+    assert_eq!(
+        get(&e, &bob, "/settings/about").await.status,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        send(&e, "GET", "/settings/about", &[], "").await.status,
+        send(&e, "GET", "/settings/users", &[], "").await.status
+    );
+}
+
 #[tokio::test]
 async fn every_post_needs_the_csrf_token_and_admin_routes_need_an_admin() {
     let e = env().await;

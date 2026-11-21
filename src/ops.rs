@@ -73,6 +73,11 @@ impl Drop for InFlight {
 }
 
 impl Metrics {
+    /// Seconds since the server started.
+    pub fn uptime_secs(&self) -> u64 {
+        self.started.elapsed().as_secs()
+    }
+
     fn record(&self, status: StatusCode, took: std::time::Duration) {
         let class = match status.as_u16() / 100 {
             c @ 1..=5 => (c - 1) as usize,
@@ -156,12 +161,16 @@ impl Metrics {
             "",
             self.started.elapsed().as_secs().to_string(),
         );
+        let b = crate::buildinfo::get();
         line(
             &mut s,
             "Build information.",
             "gauge",
             "rustbucket_build_info",
-            &format!("{{version=\"{}\"}}", env!("CARGO_PKG_VERSION")),
+            &format!(
+                "{{version=\"{}\",build_date=\"{}\",commit=\"{}\",build_id=\"{}\"}}",
+                b.version, b.build_date, b.commit, b.hash
+            ),
             "1".into(),
         );
         s

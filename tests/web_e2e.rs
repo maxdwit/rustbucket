@@ -494,6 +494,16 @@ async fn browser_left_menu_switches_between_own_incoming_and_outgoing_shares() -
         // ---- bob
         login(&d, &s.base, "bob", "pw-bob").await?;
         wait_for(&d, &row("mine.txt")).await?;
+        // bob is an administrator: the Admin menu has Users, About and the version line; About shows the build
+        d.find(By::Css(".admin-menu summary")).await?.click().await?;
+        let v = wait_for(&d, ".admin-menu[open] .menu-version").await?.text().await?;
+        assert!(v.starts_with(&format!("v{}", env!("CARGO_PKG_VERSION"))), "{v}");
+        d.find(By::Css(".admin-menu[open] a[href='/settings/users']")).await?;
+        d.find(By::Css(".admin-menu[open] a[href='/settings/about']")).await?.click().await?;
+        wait_for(&d, "table.kv").await?;
+        assert!(d.find(By::Css("h1")).await?.text().await?.contains("About"));
+        d.goto(format!("{}/apps/files/", s.base)).await?;
+        wait_for(&d, &row("mine.txt")).await?;
         assert_eq!(active_menu(&d).await?, "My own files");
         assert!(d.find_all(By::Css(row("Reports"))).await?.is_empty(), "incoming shares are not in My own files");
         // the menu is a column on the left on a desktop
@@ -693,6 +703,11 @@ async fn browser_at_phone_width_does_not_scroll_sideways() -> WebDriverResult<()
         let inside: i64 = d.execute("const m=document.querySelector('details.menu[open] .menu-items'); const r=m.getBoundingClientRect(); return (r.left >= 0 && r.right <= window.innerWidth) ? 1 : 0;", vec![]).await?.convert()?;
         assert_eq!(inside, 1, "the open menu runs off the screen");
         no_sideways_scroll(&d, "with an open menu").await?;
+        // the Admin menu (bob is an administrator) stays on the screen too
+        d.find(By::Css(".admin-menu summary")).await?.click().await?;
+        let admin_in: i64 = d.execute("const m=document.querySelector('.admin-menu[open] .menu-items'); const r=m.getBoundingClientRect(); return (r.left >= 0 && r.right <= window.innerWidth) ? 1 : 0;", vec![]).await?.convert()?;
+        assert_eq!(admin_in, 1, "the open Admin menu runs off the screen");
+        no_sideways_scroll(&d, "with the Admin menu open").await?;
         let dir: String = d.execute("return getComputedStyle(document.querySelector('.side')).flexDirection;", vec![]).await?.convert()?;
         assert_eq!(dir, "row", "the left menu becomes a row on a phone");
         for (path, what) in [("/apps/files/?view=shared-with-me", "shared with me"), ("/apps/files/?view=shared", "shared"), ("/apps/files/trash", "trash"), ("/settings/user", "settings"), ("/settings/users", "admin"), ("/login", "login")] {

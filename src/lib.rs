@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod avatar;
+pub mod buildinfo;
 pub mod config;
 pub mod dav;
 pub mod db;

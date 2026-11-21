@@ -1,0 +1,15 @@
+{% extends "app.html" %}
+{% block title %}About{% endblock %}
+{% block content %}
+<h1>About this server</h1>
+<table class="kv">
+  <tr><th scope="row">Version</th><td>{{ chrome.build.version }}</td></tr>
+  <tr><th scope="row">Build date</th><td>{{ chrome.build.build_date_display() }}{% if chrome.build.build_date != "dev" %} UTC{% endif %}</td></tr>
+  <tr><th scope="row">Commit</th><td>{{ chrome.build.commit }}</td></tr>
+  <tr><th scope="row">Build id</th><td><code>{{ chrome.build.hash }}</code></td></tr>
+  <tr><th scope="row">Running for</th><td>{{ uptime }}</td></tr>
+  <tr><th scope="row">Nextcloud version reported to clients</th><td>{{ nextcloud }}</td></tr>
+</table>
+<p class="muted">The build id is a short hash of version, build date and commit. It changes with every build; the same
+build has the same id on every server. A server run without a stamped build shows <code>dev</code>.</p>
+{% endblock %}

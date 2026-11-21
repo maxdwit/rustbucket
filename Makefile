@@ -9,10 +9,12 @@ BIND      ?= 127.0.0.1
 # names/addresses clients will use to reach the server; they go into the self-signed certificate
 TLS_NAMES ?= localhost,127.0.0.1
 RUST_IMAGE ?= rust:1
+# build number stamped into the image: UTC date and short commit ("-dirty" with uncommitted changes; "dev" without git)
+BUILD_ARGS = --build-arg BUILD_DATE=$$(date -u +%Y-%m-%dT%H:%M:%SZ) --build-arg GIT_COMMIT=$$(git describe --always --dirty --abbrev=7 2>/dev/null || echo unknown)
 
 .DEFAULT_GOAL := help
 .PHONY: help image run start stop restart rm logs status shell password user cert purge backup restore smoke \
-        test fmt clippy check audit-pii e2e
+        test fmt clippy check audit-pii e2e version bump-version
 
 help:
 	@echo "run it"
@@ -29,11 +31,21 @@ help:
 	@echo "check it"
 	@echo "  make smoke            build, start a throw-away container, probe it over TLS, remove it"
 	@echo "  make check            fmt + clippy + all tests (inside a rust container)    [make test | fmt | clippy]"
+	@echo "  make version          the version in Cargo.toml and the commit the next image is stamped with"
+	@echo "  make bump-version V=0.2.0|patch|minor|major   change the version (needs python3 on the host; commits nothing)"
 	@echo "  make audit-pii        fail if the tree contains private addresses, home paths, or real-looking emails"
 	@echo "  make e2e              real Nextcloud sync client against a throw-away server (needs 'nextcloudcmd' on the host)"
 
 image:
-	docker build -t $(IMAGE) .
+	docker build $(BUILD_ARGS) -t $(IMAGE) .
+
+version:
+	@grep -m1 '^version' Cargo.toml; git describe --always --dirty --abbrev=7 2>/dev/null || true
+
+# needs python3 on the host; changes Cargo.toml + Cargo.lock + fuzz/Cargo.lock, commits nothing
+bump-version:
+	@test -n "$(V)" || { echo "usage: make bump-version V=0.2.0 | V=patch|minor|major"; exit 2; }
+	python3 scripts/bump_version.py $(V)
 
 run:
 	@docker image inspect $(IMAGE) >/dev/null 2>&1 || $(MAKE) image

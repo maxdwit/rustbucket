@@ -21,7 +21,7 @@ wait_healthy() { for _ in $(seq 1 120); do [[ "$(docker inspect -f '{{.State.Hea
 fp() { docker exec "$N" openssl x509 -noout -fingerprint -sha256 -in /certs/tls.crt | cut -d= -f2; }
 
 echo "== build $IMAGE"
-docker build -q -t "$IMAGE" . >/dev/null || { echo "build failed"; exit 1; }
+docker build -q --build-arg BUILD_DATE=2026-01-02T03:04:05Z --build-arg GIT_COMMIT=smoke123 -t "$IMAGE" . >/dev/null || { echo "build failed"; exit 1; }
 echo "== start"
 docker run -d --name "$N" -p "127.0.0.1:$PORT:8443" -v "$N-data:/data" -v "$N-db:/db" -v "$N-certs:/certs" \
   -e RB_ADMIN_PASSWORD="$PW" -e RB_TLS_NAMES=localhost,127.0.0.1 "$IMAGE" >/dev/null || exit 1
@@ -29,6 +29,7 @@ check "container becomes healthy (nginx -> server)" wait_healthy
 docker cp "$N:/certs/tls.crt" "$W/tls.crt" >/dev/null
 check "the private key is readable by its owner only (mode 600)" test "$(docker exec "$N" stat -c %a /certs/tls.key)" = 600
 check "runs unprivileged" test "$(docker exec "$N" id -u)" = 10001
+check "the build number is stamped into the image (version, date, commit)" bash -c "docker exec $N rustbucket version | grep -q 'build date: 20260102-03:04:05' && docker exec $N rustbucket version | grep -q 'commit:     smoke123'"
 check "only port 8443 is exposed by the image" test "$(docker inspect -f '{{range $p, $_ := .Config.ExposedPorts}}{{$p}} {{end}}' "$N")" = "8443/tcp "
 check "the server itself listens on loopback only (not reachable from outside the container)" bash -c "[ \"\$(docker exec $N sh -c 'echo \$RUSTBUCKET_LISTEN')\" = 127.0.0.1:8080 ]"
 

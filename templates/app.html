@@ -6,15 +6,24 @@
 <meta name="csrf-token" content="{{ chrome.csrf }}">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"selfRequestsOnly":true,"historyCacheSize":0}'>
 <title>{% block title %}{% endblock %} - rustbucket</title>
-<link rel="stylesheet" href="/static/app.css?v={{ chrome.ver }}">
-<script src="/static/htmx.min.js?v={{ chrome.ver }}" defer></script>
-<script src="/static/app.js?v={{ chrome.ver }}" defer></script>
+<link rel="stylesheet" href="/static/app.css?v={{ chrome.build.hash }}">
+<script src="/static/htmx.min.js?v={{ chrome.build.hash }}" defer></script>
+<script src="/static/app.js?v={{ chrome.build.hash }}" defer></script>
 </head>
 <body>
 <header class="top">
   <a class="brand" href="/apps/files/">rustbucket</a>
   <a href="/settings/user">{{ chrome.display }}</a>
-  {% if chrome.is_admin %}<a href="/settings/users">Users</a>{% endif %}
+  {% if chrome.is_admin %}
+  <details class="menu admin-menu">
+    <summary>Admin</summary>
+    <div class="menu-items">
+      <a href="/settings/users">Users</a>
+      <a href="/settings/about">About</a>
+      <div class="menu-version" title="Version and build number">{{ chrome.build.short() }}</div>
+    </div>
+  </details>
+  {% endif %}
   <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ chrome.csrf }}"><button type="submit">Sign out</button></form>
 </header>
 <div class="layout">

@@ -24,3 +24,17 @@
 | a file is in the list but 404 on download | it vanished from disk: `rustbucket scan <uid>` |
 | "too many failed attempts" (429) | wait 10 minutes; a device with an old password keeps failing - remove and re-add it |
 | 413 on upload | `RUSTBUCKET_MAX_FILE_SIZE`, and the proxy's body limit |
+
+## Version and build number
+- **Version** (`X.Y.Z`): `version` in `Cargo.toml`. Change it with `make bump-version V=0.2.0` (or `V=patch|minor|major`); that also
+  updates the root package entry of `Cargo.lock` and `fuzz/Cargo.lock`. Nothing is committed for you.
+- **Build number**: the build date (UTC) and the git commit (`-dirty` when the tree had changes), stamped into the image by
+  `make image` / `make run` (docker build args `BUILD_DATE` and `GIT_COMMIT`; a plain `docker build` without them shows `dev`). The **build id** is a
+  12-character hash of version, build date and commit: different for every build, equal on every server running that build.
+- **Where to see it**: the **Admin** menu in the top bar (administrators only: Users, About, and a line like
+  `v0.1.0 20261121-12:34:56 (3d33116)`), the **About** page (`/settings/about`: version, build date, commit, build id, uptime,
+  the Nextcloud version reported to clients), `rustbucket version` on the command line, the `rustbucket_build_info` gauge in
+  `/metrics` (`version`, `build_date`, `commit`, `build_id` labels) and the image labels `org.opencontainers.image.created` and `.revision`.
+- The build id is also in the asset links of every page (`/static/app.js?v=<build id>`), so a browser fetches new scripts and
+  styles after every new image even when the version number did not change.
+
