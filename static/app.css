@@ -39,7 +39,7 @@ h2 { font-size: 1.1rem; margin: 1.6rem 0 .6rem; }
 .upload progress { grid-column: 1 / -1; width: 100%; }
 .upload.failed .state { color: var(--danger); }
 .list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); }
-.row { display: grid; grid-template-columns: minmax(0, 1fr) 6rem 10rem auto; gap: .3rem .8rem; align-items: center; padding: .5rem .8rem; border-bottom: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr) 6rem 10rem auto; gap: .3rem .8rem; align-items: center; padding: .5rem .8rem; border-bottom: 1px solid var(--line); }
 .row:last-child { border-bottom: 0; }
 .row.drop-target { outline: 2px solid var(--accent); outline-offset: -2px; }
 .row .name { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .6rem; min-width: 0; }
@@ -48,8 +48,26 @@ h2 { font-size: 1.1rem; margin: 1.6rem 0 .6rem; }
 .row .thumb, .row .icon { width: 2.2rem; height: 2.2rem; flex: none; border-radius: 6px; object-fit: cover; background: #8882; display: grid; place-items: center; font-size: 1.2rem; }
 .row .meta { font-size: .85rem; opacity: .75; }
 .row .name .sub { flex: 1 1 100%; font-size: .82rem; opacity: .7; overflow-wrap: anywhere; }
-.row .actions { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: flex-end; }
+.row .actions { display: flex; align-items: center; gap: .3rem; justify-content: flex-end; }
 .row .actions button { padding: .25rem .55rem; font-size: .85rem; }
+.row .sel, .row .sel-all { width: 1.1rem; height: 1.1rem; margin: 0; }
+.row.selected { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.bulkbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .5rem .8rem; margin-bottom: .8rem; border: 1px solid var(--accent); border-radius: var(--radius); }
+.bulkbar[hidden], #bulk-host[hidden] { display: none; }
+#bulk-count { margin-right: auto; font-weight: 600; }
+#bulk-host { margin-bottom: .8rem; }
+/* icon buttons: Share in front, "..." menu behind it */
+.icon-btn { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: ButtonFace; color: ButtonText; cursor: pointer; list-style: none; }
+.row .actions .icon-btn { padding: 0; }
+summary.icon-btn::-webkit-details-marker { display: none; }
+.icon-btn svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.icon-btn:hover { background: #8882; }
+.icon-btn.on { color: var(--accent); border-color: var(--accent); }
+.menu { position: relative; }
+.menu[open] > summary { background: #8882; }
+.menu-items { position: absolute; right: 0; top: calc(100% + .25rem); z-index: 10; display: flex; flex-direction: column; min-width: 9rem; padding: .3rem; background: Canvas; color: CanvasText; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px #0003; }
+.row .actions .menu-items button { text-align: left; border: 0; background: transparent; padding: .45rem .6rem; border-radius: 6px; font-size: .9rem; color: inherit; }
+.row .actions .menu-items button:hover, .row .actions .menu-items button:focus-visible { background: #8882; }
 .row .badge { font-size: .75rem; padding: .05rem .4rem; border: 1px solid var(--line); border-radius: 999px; opacity: .85; }
 .row.head { font-size: .8rem; opacity: .7; }
 .empty { padding: 1.2rem; text-align: center; opacity: .7; }
@@ -78,11 +96,14 @@ details.edit summary { cursor: pointer; color: var(--accent); }
   .side { flex: none; flex-direction: row; flex-wrap: wrap; gap: .3rem; padding: .6rem 0 0; }
   .side a { padding: .35rem .6rem; border: 1px solid var(--line); }
   main { padding: .6rem 0; }
-  .row { grid-template-columns: minmax(0, 1fr) auto; }
-  .row .name { max-width: 100%; }
+  .row { grid-template-columns: 1.4rem minmax(0, 1fr) auto; grid-template-areas: "sel name actions" ". size actions"; }
+  .row .sel { grid-area: sel; align-self: start; margin-top: .45rem; }
+  .row .name { grid-area: name; max-width: 100%; }
+  .row .meta.size { grid-area: size; }
   .row .meta.mtime { display: none; }
-  .row .actions { grid-column: 1 / -1; justify-content: flex-start; }
-  .row.head { display: none; }
+  .row .actions { grid-area: actions; justify-content: flex-end; }
+  .row.head { grid-template-columns: 1.4rem minmax(0, 1fr); grid-template-areas: none; }
+  .row.head span:nth-of-type(n+2) { display: none; }
   table.users, table.users tbody, table.users tr, table.users td { display: block; width: 100%; }
   table.users thead { display: none; }
   table.users tr { border-bottom: 1px solid var(--line); padding: .4rem 0; }

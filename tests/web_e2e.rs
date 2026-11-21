@@ -99,6 +99,16 @@ fn row(name: &str) -> String {
     format!(".row[data-name=\"{name}\"]")
 }
 
+/// Open the "..." menu of a row (rename, move, versions and delete live in it).
+async fn open_menu(d: &WebDriver, row_css: &str) -> WebDriverResult<()> {
+    d.find(By::Css(format!("{row_css} details.menu summary")))
+        .await?
+        .click()
+        .await?;
+    wait_for(d, &format!("{row_css} details.menu[open]")).await?;
+    Ok(())
+}
+
 async fn login(d: &WebDriver, base: &str, user: &str, pw: &str) -> WebDriverResult<()> {
     d.goto(format!("{base}/")).await?; // stock behaviour: / sends us to the login page
     wait_for(d, "input[name=username]")
@@ -230,6 +240,7 @@ async fn browser_login_upload_rename_move_share_delete_logout() -> WebDriverResu
         assert!(files.join("Docs").is_dir());
 
         // rename
+        open_menu(&d, &row("hello.txt")).await?;
         wait_for(
             &d,
             &format!("{} button[data-action=rename]", row("hello.txt")),
@@ -237,7 +248,7 @@ async fn browser_login_upload_rename_move_share_delete_logout() -> WebDriverResu
         .await?
         .click()
         .await?;
-        let inp = wait_for(&d, &format!("{} input", row("hello.txt"))).await?;
+        let inp = wait_for(&d, &format!("{} input[type=text]", row("hello.txt"))).await?;
         inp.clear().await?;
         inp.send_keys("renamed.txt\n").await?;
         wait_for(&d, &row("renamed.txt")).await?;
@@ -245,6 +256,7 @@ async fn browser_login_upload_rename_move_share_delete_logout() -> WebDriverResu
         assert!(files.join("renamed.txt").exists() && !files.join("hello.txt").exists());
 
         // move into Docs (inline target field)
+        open_menu(&d, &row("renamed.txt")).await?;
         d.find(By::Css(format!(
             "{} button[data-action=move]",
             row("renamed.txt")
@@ -252,7 +264,7 @@ async fn browser_login_upload_rename_move_share_delete_logout() -> WebDriverResu
         .await?
         .click()
         .await?;
-        let inp = wait_for(&d, &format!("{} input", row("renamed.txt"))).await?;
+        let inp = wait_for(&d, &format!("{} input[type=text]", row("renamed.txt"))).await?;
         inp.clear().await?;
         inp.send_keys("/Docs\n").await?;
         gone(&d, &row("renamed.txt")).await?;
@@ -345,6 +357,7 @@ async fn browser_login_upload_rename_move_share_delete_logout() -> WebDriverResu
 
         // delete needs a second click ("Sure?")
         let del = format!("{} button[data-action=delete]", row("chunky.bin"));
+        open_menu(&d, &row("chunky.bin")).await?;
         d.find(By::Css(&del)).await?.click().await?;
         assert_eq!(d.find(By::Css(&del)).await?.text().await?, "Sure?");
         assert!(files.join("chunky.bin").exists());
@@ -360,6 +373,7 @@ async fn browser_login_upload_rename_move_share_delete_logout() -> WebDriverResu
         assert_eq!(std::fs::read(files.join("chunky.bin")).unwrap(), big_bytes);
         // delete it again, then remove it for good from the bin (two clicks for "empty trash")
         d.goto(format!("{}/apps/files/", s.base)).await?;
+        open_menu(&d, &row("chunky.bin")).await?;
         d.find(By::Css(format!("{} button[data-action=delete]", row("chunky.bin")))).await?.click().await?;
         d.find(By::Css(format!("{} button[data-action=delete]", row("chunky.bin")))).await?.click().await?;
         gone(&d, &row("chunky.bin")).await?;
@@ -387,6 +401,7 @@ async fn browser_login_upload_rename_move_share_delete_logout() -> WebDriverResu
         }
         d.goto(format!("{}/apps/files/", s.base)).await?;
         wait_for(&d, &row("versioned.txt")).await?;
+        open_menu(&d, &row("versioned.txt")).await?;
         d.find(By::Css(format!("{} button[data-action=versions]", row("versioned.txt")))).await?.click().await?;
         wait_for(&d, "dialog[open] li[data-ts=\"1700000100\"] button[data-ver=restore]").await?.click().await?;
         for _ in 0..80 {
@@ -527,6 +542,108 @@ async fn browser_left_menu_switches_between_own_incoming_and_outgoing_shares() -
     result
 }
 
+/// Multi-select in a real browser: tick two files and move them in one go, then select everything in a
+/// folder and delete it (with the confirmation click); deleted items end up in the trash.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs chromedriver + chromium: run scripts/e2e_web.sh"]
+async fn browser_multi_select_moves_and_deletes_several_items() -> WebDriverResult<()> {
+    let s = start().await;
+    seed(
+        &s,
+        "bob",
+        &[
+            ("a.txt", "a"),
+            ("b.txt", "b"),
+            ("c.txt", "c"),
+            ("Target/keep.txt", "k"),
+        ],
+    )
+    .await;
+    let files = s.data.join("bob/files");
+    let d = driver(1280, 900).await?;
+    let result = async {
+        login(&d, &s.base, "bob", "pw-bob").await?;
+        wait_for(&d, &row("a.txt")).await?;
+        assert!(
+            !d.find(By::Css("#bulkbar")).await?.is_displayed().await?,
+            "no selection, no bar"
+        );
+        d.find(By::Css(format!("{} .sel", row("a.txt"))))
+            .await?
+            .click()
+            .await?;
+        d.find(By::Css(format!("{} .sel", row("b.txt"))))
+            .await?
+            .click()
+            .await?;
+        wait_for(&d, "#bulkbar:not([hidden])").await?;
+        assert_eq!(
+            d.find(By::Css("#bulk-count")).await?.text().await?,
+            "2 selected"
+        );
+        let partial: bool = d
+            .execute(
+                "return document.getElementById('sel-all').indeterminate;",
+                vec![],
+            )
+            .await?
+            .convert()?;
+        assert!(partial, "select-all shows a partial selection");
+
+        // move both into Target
+        d.find(By::Css("#bulk-move")).await?.click().await?;
+        let inp = wait_for(&d, "#bulk-host input").await?;
+        inp.clear().await?;
+        inp.send_keys("/Target\n").await?;
+        gone(&d, &row("a.txt")).await?;
+        gone(&d, &row("b.txt")).await?;
+        assert!(files.join("Target/a.txt").exists() && files.join("Target/b.txt").exists());
+        assert!(files.join("c.txt").exists(), "the unselected file stays");
+        assert!(
+            d.find(By::Css("#flash"))
+                .await?
+                .text()
+                .await?
+                .contains("Moved 2 items")
+        );
+
+        // into Target: select all (3 items) and delete; nothing happens before the second click
+        d.find(By::Css(format!("{} .name a", row("Target"))))
+            .await?
+            .click()
+            .await?;
+        wait_for(&d, &row("keep.txt")).await?;
+        d.find(By::Css("#sel-all")).await?.click().await?;
+        assert_eq!(
+            d.find(By::Css("#bulk-count")).await?.text().await?,
+            "3 selected"
+        );
+        d.find(By::Css("#bulk-delete")).await?.click().await?;
+        assert!(
+            d.find(By::Css("#bulk-delete"))
+                .await?
+                .text()
+                .await?
+                .contains("sure?")
+        );
+        assert!(
+            files.join("Target/a.txt").exists(),
+            "nothing is deleted before the confirmation"
+        );
+        d.find(By::Css("#bulk-delete")).await?.click().await?;
+        wait_for(&d, ".list .empty").await?;
+        assert!(!files.join("Target/a.txt").exists() && !files.join("Target/keep.txt").exists());
+        assert!(
+            std::fs::read_dir(s.data.join("bob/trash")).is_ok_and(|mut x| x.next().is_some()),
+            "deleted items go to the trash"
+        );
+        Ok::<(), WebDriverError>(())
+    }
+    .await;
+    d.quit().await?;
+    result
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs chromedriver + chromium: run scripts/e2e_web.sh"]
 async fn browser_at_phone_width_does_not_scroll_sideways() -> WebDriverResult<()> {
@@ -568,6 +685,14 @@ async fn browser_at_phone_width_does_not_scroll_sideways() -> WebDriverResult<()
         // the action buttons are reachable (not clipped away) on a phone
         let w: i64 = d.execute("const b=document.querySelector('.row .actions button'); const r=b.getBoundingClientRect(); return Math.round(r.right);", vec![]).await?.convert()?;
         assert!(w <= 390, "buttons run off the screen: {w}");
+        // a selection shows the bar above the list; an open "..." menu stays on the screen
+        d.find(By::Css(".row:not(.head) .sel")).await?.click().await?;
+        wait_for(&d, "#bulkbar:not([hidden])").await?;
+        no_sideways_scroll(&d, "with a selection").await?;
+        d.find(By::Css(".row:not(.head) details.menu summary")).await?.click().await?;
+        let inside: i64 = d.execute("const m=document.querySelector('details.menu[open] .menu-items'); const r=m.getBoundingClientRect(); return (r.left >= 0 && r.right <= window.innerWidth) ? 1 : 0;", vec![]).await?.convert()?;
+        assert_eq!(inside, 1, "the open menu runs off the screen");
+        no_sideways_scroll(&d, "with an open menu").await?;
         let dir: String = d.execute("return getComputedStyle(document.querySelector('.side')).flexDirection;", vec![]).await?.convert()?;
         assert_eq!(dir, "row", "the left menu becomes a row on a phone");
         for (path, what) in [("/apps/files/?view=shared-with-me", "shared with me"), ("/apps/files/?view=shared", "shared"), ("/apps/files/trash", "trash"), ("/settings/user", "settings"), ("/settings/users", "admin"), ("/login", "login")] {

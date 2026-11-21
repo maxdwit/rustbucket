@@ -200,10 +200,82 @@
   }
   let searchTimer;
 
+  // ---------- "..." menus ----------
+  const closeMenus = (except) => document.querySelectorAll('details.menu[open]').forEach((m) => { if (m !== except) m.open = false; });
+
+  // ---------- multi-select: checkboxes, the bar above the list, bulk move / delete ----------
+  const rowChecks = () => [...document.querySelectorAll('#listing .row:not(.head) .sel')];
+  const selectedRows = () => rowChecks().filter((c) => c.checked).map((c) => c.closest('.row'));
+  const plural = (n) => `${n} item${n === 1 ? '' : 's'}`;
+
+  function updateBulk() {
+    const checks = rowChecks();
+    const rows = checks.filter((c) => c.checked).map((c) => c.closest('.row'));
+    checks.forEach((c) => c.closest('.row').classList.toggle('selected', c.checked));
+    const bar = document.getElementById('bulkbar');
+    if (!bar) return;
+    bar.hidden = rows.length === 0;
+    document.getElementById('bulk-count').textContent = `${rows.length} selected`;
+    // an action is offered only when every selected item allows it (no half-done surprises)
+    const mv = document.getElementById('bulk-move'), del = document.getElementById('bulk-delete');
+    mv.disabled = !rows.every((r) => r.dataset.canMove === '1');
+    del.disabled = !rows.every((r) => r.dataset.canDelete === '1');
+    mv.title = mv.disabled ? 'Some of the selected items cannot be moved.' : '';
+    del.title = del.disabled ? 'Some of the selected items cannot be deleted.' : '';
+    // a changed selection cancels a pending confirmation or an open "move" form
+    del.dataset.confirm = ''; del.textContent = 'Delete';
+    const host = document.getElementById('bulk-host'); host.hidden = true; host.replaceChildren();
+    const all = document.getElementById('sel-all');
+    if (all) { all.checked = checks.length > 0 && rows.length === checks.length; all.indeterminate = rows.length > 0 && rows.length < checks.length; }
+  }
+
+  // children before parents, so a folder and something inside it (possible in the "Shared" list) both work
+  const deepestFirst = (rows) => rows.sort((a, b) => b.dataset.path.split('/').length - a.dataset.path.split('/').length);
+
+  async function bulk(kind, folder) {
+    const rows = deepestFirst(selectedRows());
+    const failed = [];
+    for (const row of rows) {
+      const { path, name } = row.dataset;
+      const r = kind === 'delete'
+        ? await dav('DELETE', path)
+        : await dav('MOVE', path, { ...destHeader(join(folder, name)), Overwrite: 'F' });
+      if (!r.ok) failed.push(`${name}: ${explain(r.status)}`);
+    }
+    await refresh();
+    const done = rows.length - failed.length, verb = kind === 'delete' ? 'Deleted' : 'Moved';
+    if (failed.length) toast(`${verb} ${done} of ${rows.length}. ${failed.join(' ')}`);
+    else toast(`${verb} ${plural(done)}.`, 'ok');
+  }
+
+  function bulkAction(b) {
+    const n = selectedRows().length;
+    if (!n || b.disabled) return;
+    if (b.id === 'bulk-clear') { rowChecks().forEach((c) => { c.checked = false; }); return updateBulk(); }
+    if (b.id === 'bulk-delete') {
+      if (b.dataset.confirm !== '1') {
+        b.dataset.confirm = '1'; b.textContent = `Delete ${plural(n)} - sure?`;
+        setTimeout(() => { if (b.isConnected && b.dataset.confirm === '1') { b.dataset.confirm = ''; b.textContent = 'Delete'; } }, 4000);
+        return;
+      }
+      b.disabled = true;
+      return bulk('delete');
+    }
+    if (b.id === 'bulk-move') {
+      const host = document.getElementById('bulk-host'); host.hidden = false;
+      inlineForm(host, { value: dirNow(), placeholder: 'Target folder, e.g. /Photos', button: `Move ${plural(n)}`, onSubmit: async (v) => {
+        const folder = '/' + enc(v).split('/').map(decodeURIComponent).join('/');
+        await bulk('move', folder);
+      } });
+    }
+  }
+
   // ---------- events ----------
   document.addEventListener('click', async (e) => {
+    closeMenus(e.target.closest('details.menu')); // a click outside an open "..." menu closes it
     const b = e.target.closest('button');
     if (!b) return;
+    if (b.id === 'bulk-move' || b.id === 'bulk-delete' || b.id === 'bulk-clear') return bulkAction(b);
     if (b.id === 'btn-upload') return document.getElementById('file-input').click();
     if (b.id === 'btn-newfolder') {
       const host = document.getElementById('newfolder-host'); host.hidden = false;
@@ -213,7 +285,15 @@
         r.ok ? refresh() : toast(explain(r.status));
       } });
     }
-    if (b.dataset.action) { const row = b.closest('.row'); if (row) return act(row, b.dataset.action); }
+    if (b.dataset.action) {
+      const row = b.closest('.row');
+      if (row) {
+        const menu = b.closest('details.menu');
+        const p = act(row, b.dataset.action);
+        if (menu && b.dataset.confirm !== '1') menu.open = false;
+        return p;
+      }
+    }
     if (b.id === 'share-close') return dialog().close();
     // trash bin: restore / delete one entry / empty
     if (b.dataset.trash) {
@@ -246,6 +326,8 @@
   });
   document.addEventListener('change', async (e) => {
     const t = e.target;
+    if (t.classList?.contains('sel')) updateBulk();
+    if (t.id === 'sel-all') { rowChecks().forEach((c) => { c.checked = t.checked; }); updateBulk(); }
     if (t.id === 'file-input') { const files = [...t.files]; t.value = ''; if (files.length) uploadAll(files); }
     if (t.dataset.sharePerm) {
       const r = await ocs('PUT', '/shares/' + t.dataset.sharePerm, { permissions: t.value });
@@ -262,6 +344,12 @@
     if (!who) return;
     const r = await ocs('POST', '/shares', { shareType: shareeKinds[who] ?? 0, shareWith: who, path: f.elements.path.value, permissions: f.elements.permissions.value });
     r.ok ? reloadShare() : shareMsg(r.message);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const m = document.querySelector('details.menu[open]');
+    if (m) { m.open = false; m.querySelector('summary')?.focus(); }
   });
 
   // drag & drop: files from the desktop onto the page, rows onto folders

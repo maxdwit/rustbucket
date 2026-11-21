@@ -820,6 +820,87 @@ async fn left_menu_and_the_three_file_views() {
     );
 }
 
+/// One list row of a rendered page.
+fn li(body: &str, name: &str) -> String {
+    let s = &body[body.find(&format!("data-name=\"{name}\"")).unwrap()..];
+    s[..s.find("</li>").unwrap()].to_string()
+}
+
+/// Share is an icon in front; rename/move/versions/delete live in the "..." menu behind it; every row has a
+/// checkbox and carries what the bulk bar needs to know about its permissions.
+#[tokio::test]
+async fn share_icon_in_front_menu_behind_and_the_multi_select_markup() {
+    let e = env().await;
+    for (m, p, b) in [
+        ("MKCOL", "/Docs", ""),
+        ("PUT", "/Docs/f.txt", "x"),
+        ("PUT", "/g.txt", "g"),
+    ] {
+        assert!(dav(&e, "alice", m, p, b).await.is_success());
+    }
+    share_with(&e, "alice", "/Docs", "0", "bob", "1").await;
+    let alice = login(&e, "alice", "pw-alice").await;
+    let top = get(&e, &alice, "/apps/files/").await.body;
+    let g = li(&top, "g.txt");
+    let share = g.find("data-action=\"share\"").unwrap();
+    let menu = g.find("<details class=\"menu\">").unwrap();
+    assert!(share < menu, "the share icon comes first: {g}");
+    for a in ["rename", "move", "versions", "delete"] {
+        let at = g.find(&format!("data-action=\"{a}\"")).unwrap();
+        assert!(at > menu, "{a} belongs into the menu");
+    }
+    assert!(g.contains("class=\"icon-btn share\"") && !g.contains("icon-btn share on"));
+    for l in [
+        "aria-label=\"Share g.txt\"",
+        "aria-label=\"More actions for g.txt\"",
+        "aria-label=\"Select g.txt\"",
+    ] {
+        assert!(g.contains(l), "{l}");
+    }
+    assert!(g.contains("data-can-move=\"1\"") && g.contains("data-can-delete=\"1\""));
+    assert!(
+        li(&top, "Docs").contains("icon-btn share on"),
+        "an item that is shared has the highlighted icon"
+    );
+    assert!(top.contains("<div id=\"bulkbar\" class=\"bulkbar\" hidden>"));
+    for id in [
+        "id=\"bulk-move\"",
+        "id=\"bulk-delete\"",
+        "id=\"bulk-clear\"",
+        "id=\"sel-all\"",
+    ] {
+        assert!(top.contains(id), "{id}");
+    }
+    // bob inside the read-only share: nothing to do with the file, so no icon, no menu, both flags off
+    let bob = login(&e, "bob", "pw-bob").await;
+    let inside = get(&e, &bob, "/apps/files/?view=shared-with-me&dir=%2FDocs")
+        .await
+        .body;
+    let f = li(&inside, "f.txt");
+    assert!(
+        !f.contains("class=\"menu\"") && !f.contains("icon-btn share"),
+        "{f}"
+    );
+    assert!(
+        f.contains("data-can-move=\"0\"")
+            && f.contains("data-can-delete=\"0\"")
+            && f.contains("aria-label=\"Select f.txt\"")
+    );
+    // the share itself can be removed from the list of shares
+    let swm = get(&e, &bob, "/apps/files/?view=shared-with-me").await.body;
+    let d = li(&swm, "Docs");
+    assert!(
+        d.contains("data-can-delete=\"1\"") && d.contains(">Remove share<"),
+        "{d}"
+    );
+    // nothing to select in an empty list
+    let none = get(&e, &bob, "/apps/files/?view=shared").await.body;
+    assert!(
+        none.contains("id=\"sel-all\" class=\"sel-all\" aria-label=\"Select all\" disabled"),
+        "{none}"
+    );
+}
+
 #[tokio::test]
 async fn every_post_needs_the_csrf_token_and_admin_routes_need_an_admin() {
     let e = env().await;

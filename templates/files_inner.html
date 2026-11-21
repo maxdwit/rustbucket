@@ -12,10 +12,21 @@
 </div>
 <div id="newfolder-host" hidden></div>
 <div id="dropzone" class="dropzone">Drop files here to upload</div>
+<div id="bulkbar" class="bulkbar" hidden>
+  <span id="bulk-count" aria-live="polite"></span>
+  <button type="button" id="bulk-move">Move</button>
+  <button type="button" id="bulk-delete" class="danger">Delete</button>
+  <button type="button" id="bulk-clear">Clear selection</button>
+</div>
+<div id="bulk-host" hidden></div>
 <ul class="list" id="listing">
-  <li class="row head" aria-hidden="true"><span>Name</span><span>Size</span><span>Modified</span><span></span></li>
+  <li class="row head">
+    <input type="checkbox" id="sel-all" class="sel-all" aria-label="Select all"{% if rows.is_empty() %} disabled{% endif %}>
+    <span aria-hidden="true">Name</span><span aria-hidden="true">Size</span><span aria-hidden="true">Modified</span><span></span>
+  </li>
   {% for r in rows %}
-  <li class="row" data-path="{{ r.path }}" data-name="{{ r.name }}" data-dir="{% if r.is_dir %}1{% else %}0{% endif %}"{% if r.can_move %} draggable="true"{% endif %}>
+  <li class="row" data-path="{{ r.path }}" data-name="{{ r.name }}" data-dir="{% if r.is_dir %}1{% else %}0{% endif %}" data-can-move="{% if r.can_move %}1{% else %}0{% endif %}" data-can-delete="{% if r.can_delete %}1{% else %}0{% endif %}"{% if r.can_move %} draggable="true"{% endif %}>
+    <input type="checkbox" class="sel" aria-label="Select {{ r.name }}">
     <div class="name">
       {% if r.is_dir %}<a href="{{ r.link }}"{% if r.boost %} hx-get="{{ r.link }}" hx-target="#files-root" hx-push-url="true"{% endif %}>
       {% else %}<a href="{{ r.download }}" download>{% endif %}
@@ -29,11 +40,18 @@
     <span class="meta size">{{ r.size }}</span>
     <span class="meta mtime">{{ r.mtime }}</span>
     <span class="actions">
-      {% if r.can_rename %}<button type="button" data-action="rename">Rename</button>{% endif %}
-      {% if r.can_move %}<button type="button" data-action="move">Move</button>{% endif %}
-      {% if r.can_versions %}<button type="button" data-action="versions">Versions</button>{% endif %}
-      {% if r.can_share %}<button type="button" data-action="share">Share</button>{% endif %}
-      {% if r.can_delete %}<button type="button" data-action="delete">{{ r.delete_label }}</button>{% endif %}
+      {% if r.can_share %}<button type="button" class="icon-btn share{% if r.shared_out %} on{% endif %}" data-action="share" title="Share" aria-label="Share {{ r.name }}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>{% endif %}
+      {% if r.can_rename || r.can_move || r.can_versions || r.can_delete %}
+      <details class="menu">
+        <summary class="icon-btn" title="More actions" aria-label="More actions for {{ r.name }}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></summary>
+        <div class="menu-items">
+          {% if r.can_rename %}<button type="button" data-action="rename">Rename</button>{% endif %}
+          {% if r.can_move %}<button type="button" data-action="move">Move</button>{% endif %}
+          {% if r.can_versions %}<button type="button" data-action="versions">Versions</button>{% endif %}
+          {% if r.can_delete %}<button type="button" data-action="delete">{{ r.delete_label }}</button>{% endif %}
+        </div>
+      </details>
+      {% endif %}
     </span>
   </li>
   {% endfor %}
