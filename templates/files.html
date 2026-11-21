@@ -3,6 +3,7 @@
 {% block side %}{% include "sidebar.html" %}{% endblock %}
 {% block content %}
 <div id="uploads" class="uploads" aria-live="polite"></div>
+{# inner is the output of FilesInner::render(): HTML in which askama already escaped every user-controlled value, so it must not be escaped a second time. Nothing user-supplied is put here directly. #}
 <div id="files-root">{{ inner|safe }}</div>
 <dialog id="share-dialog" aria-label="Share"><div id="share-body"></div></dialog>
 {% endblock %}

@@ -44,6 +44,9 @@
     507: 'The server is out of space.',
   }[status] || `The server answered ${status}.`);
 
+  // run an async job started by an event handler: an unexpected failure shows a message instead of leaving a rejected promise behind
+  const background = (job) => job.catch(() => toast('Something went wrong. Please reload the page and try again.'));
+
   async function dav(method, path, headers = {}, body) {
     const r = await fetch(davUrl(path), { method, headers: { 'X-CSRF-Token': csrf, ...headers }, body, credentials: 'same-origin' });
     if (r.status === 401) { location.href = '/login'; }
@@ -328,7 +331,7 @@
     const t = e.target;
     if (t.classList?.contains('sel')) updateBulk();
     if (t.id === 'sel-all') { rowChecks().forEach((c) => { c.checked = t.checked; }); updateBulk(); }
-    if (t.id === 'file-input') { const files = [...t.files]; t.value = ''; if (files.length) uploadAll(files); }
+    if (t.id === 'file-input') { const files = [...t.files]; t.value = ''; if (files.length) background(uploadAll(files)); }
     if (t.dataset.sharePerm) {
       const r = await ocs('PUT', '/shares/' + t.dataset.sharePerm, { permissions: t.value });
       r.ok ? shareMsg('Saved.', 'ok') : shareMsg(r.message);
@@ -361,7 +364,7 @@
   window.addEventListener('dragover', (e) => { if (hasFiles(e) || window.__dragRow) e.preventDefault(); });
   window.addEventListener('drop', (e) => {
     zone()?.classList.remove('active'); dragDepth = 0;
-    if (hasFiles(e)) { e.preventDefault(); uploadAll([...e.dataTransfer.files]); }
+    if (hasFiles(e)) { e.preventDefault(); background(uploadAll([...e.dataTransfer.files])); }
   });
   document.addEventListener('dragstart', (e) => { const row = e.target.closest?.('.row[draggable]'); if (row) { window.__dragRow = row; e.dataTransfer.setData('text/plain', row.dataset.path); } });
   document.addEventListener('dragend', () => { window.__dragRow = null; document.querySelectorAll('.drop-target').forEach((x) => x.classList.remove('drop-target')); });

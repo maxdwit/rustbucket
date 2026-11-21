@@ -27,6 +27,9 @@ All notable changes to this public preview. Newest first. The version is the one
 - `make user` (and the other make targets) are described for AI agents in `CLAUDE.md`.
 
 ### Fixed
+- **A failed upload could vanish silently** (SonarQube `javascript:S9383`, two findings): the file chooser and the drag-and-drop
+  handler started the async upload without handling a failure, so an unexpected error was an unhandled rejection with no
+  message. They now go through one helper that shows "Something went wrong. Please reload the page and try again."
 - **Stale scripts and styles after an update**: static files are cached for an hour and were keyed only by the Cargo
   version, so a new image without a version bump could serve a new page with old JavaScript or CSS. The asset links now
   carry the build id, which changes with every build.
@@ -35,6 +38,9 @@ All notable changes to this public preview. Newest first. The version is the one
 - **Credential files in the working tree**: `.env_*` and `*.env` are git-ignored (`.env.example` stays tracked).
 
 ### Changed
+- SonarQube: the reviewed findings that are accepted by design are recorded in `sonar-project.properties`
+  (`Web:S5247` on `templates/files.html`: the `|safe` embeds our own already-escaped fragment; `Web:S9379` on the two login
+  pages: autofocus on the username field, the login pages allow no script so JavaScript cannot set the focus).
 - Tests: a web test for the three views (redirects, escaping, unsharing), one for the icon/menu/checkbox markup and the
   permission flags, one for the Admin menu, About page and asset links; Chromium tests for switching views, multi-select
   (move, delete, trash) and the phone layout; the metrics test checks the full `rustbucket_build_info` labels.
