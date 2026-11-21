@@ -26,7 +26,7 @@
   the device shows before you trust it, or use your own certificate / a reverse proxy with a public one ([install.md](install.md)).
   HSTS is only sent when `RUSTBUCKET_BASE_URL` is an https URL, so the self-signed test setup does not pin `localhost`.
 - **Dependency and image scanning:** `make audit-deps` runs `cargo audit` (RustSec advisories) and `cargo deny` (advisories,
-  licenses, bans, sources; policy in `deny.toml`); `make scan-image` runs Trivy over the built image (Debian packages incl. nginx,
+  licenses, bans, sources; policy in `deny.toml`); `make scan-image` runs Trivy over the built image (Alpine packages incl. nginx,
   openssl, curl, and secrets in layers) and fails on fixable HIGH/CRITICAL findings. CI runs both daily, because advisories
   appear without any code change. The crate itself forbids `unsafe` (`#![forbid(unsafe_code)]`). SonarQube does not analyze Rust;
   it covers the JavaScript and the templates.

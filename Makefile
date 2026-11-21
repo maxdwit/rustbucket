@@ -2,8 +2,6 @@
 # `make` (or `make help`) lists the targets. AI agents: read CLAUDE.md first.
 
 IMAGE     ?= rustbucket:preview
-# which Dockerfile `make image` / `make smoke` build (docker/Dockerfile.alpine is an experiment, see docs/alpine.md)
-DOCKERFILE ?= Dockerfile
 NAME      ?= rustbucket
 PORT      ?= 8443
 # address the port is published on: localhost only by default; BIND=0.0.0.0 to serve other devices
@@ -12,7 +10,7 @@ BIND      ?= 127.0.0.1
 TLS_NAMES ?= localhost,127.0.0.1
 RUST_IMAGE ?= rust:1
 # build number stamped into the image: UTC date and short commit ("-dirty" with uncommitted changes; "dev" without git);
-# PKG_DATE makes the Debian security-update layer re-run every day (see the Dockerfile)
+# PKG_DATE makes the Alpine security-update layer re-run every day (see the Dockerfile)
 BUILD_ARGS = --build-arg PKG_DATE=$$(date -u +%Y%m%d) --build-arg BUILD_DATE=$$(date -u +%Y-%m-%dT%H:%M:%SZ) --build-arg GIT_COMMIT=$$(git describe --always --dirty --abbrev=7 2>/dev/null || echo unknown)
 
 .DEFAULT_GOAL := help
@@ -21,7 +19,7 @@ BUILD_ARGS = --build-arg PKG_DATE=$$(date -u +%Y%m%d) --build-arg BUILD_DATE=$$(
 
 help:
 	@echo "run it"
-	@echo "  make image            build the image ($(IMAGE)): the server + nginx with a self-signed certificate, one container  [DOCKERFILE=docker/Dockerfile.alpine: Alpine experiment]"
+	@echo "  make image            build the image ($(IMAGE)): the server + nginx with a self-signed certificate, one container"
 	@echo "  make run              build if needed, start the container '$(NAME)' on https://localhost:$(PORT)/"
 	@echo "                        [BIND=127.0.0.1 (0.0.0.0 = reachable from other devices)] [PORT=8443] [TLS_NAMES=localhost,127.0.0.1,files.example.com,192.0.2.10] [NAME=rustbucket]"
 	@echo "  make password         show the generated administrator password (first start only)"
@@ -37,12 +35,12 @@ help:
 	@echo "  make version          the version in Cargo.toml and the commit the next image is stamped with"
 	@echo "  make bump-version V=0.2.0|patch|minor|major   change the version (needs python3 on the host; commits nothing)"
 	@echo "  make audit-deps       known vulnerabilities in the Rust dependencies: cargo audit (RustSec) + cargo deny (advisories, licenses, bans, sources)"
-	@echo "  make scan-image       CVEs in the built image (Debian packages incl. nginx/openssl/curl) with Trivy; fails on fixable HIGH/CRITICAL"
+	@echo "  make scan-image       CVEs in the built image (Alpine packages incl. nginx/openssl/curl) with Trivy; fails on fixable HIGH/CRITICAL"
 	@echo "  make audit-pii        fail if the tree contains private addresses, home paths, or real-looking emails"
 	@echo "  make e2e              real Nextcloud sync client against a throw-away server (needs 'nextcloudcmd' on the host)"
 
 image:
-	docker build $(BUILD_ARGS) -f $(DOCKERFILE) -t $(IMAGE) .
+	docker build $(BUILD_ARGS) -t $(IMAGE) .
 
 version:
 	@grep -m1 '^version' Cargo.toml; git describe --always --dirty --abbrev=7 2>/dev/null || true

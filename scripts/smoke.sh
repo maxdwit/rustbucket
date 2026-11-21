@@ -21,7 +21,7 @@ wait_healthy() { for _ in $(seq 1 120); do [[ "$(docker inspect -f '{{.State.Hea
 fp() { docker exec "$N" openssl x509 -noout -fingerprint -sha256 -in /certs/tls.crt | cut -d= -f2; }
 
 echo "== build $IMAGE"
-docker build -q --build-arg BUILD_DATE=2026-01-02T03:04:05Z --build-arg GIT_COMMIT=smoke123 -f "${DOCKERFILE:-Dockerfile}" -t "$IMAGE" . >/dev/null || { echo "build failed"; exit 1; }
+docker build -q --build-arg BUILD_DATE=2026-01-02T03:04:05Z --build-arg GIT_COMMIT=smoke123 -t "$IMAGE" . >/dev/null || { echo "build failed"; exit 1; }
 echo "== start"
 docker run -d --name "$N" -p "127.0.0.1:$PORT:8443" -v "$N-data:/data" -v "$N-db:/db" -v "$N-certs:/certs" \
   -e RB_ADMIN_PASSWORD="$PW" -e RB_TLS_NAMES=localhost,127.0.0.1 "$IMAGE" >/dev/null || exit 1

@@ -1,16 +1,10 @@
-# Running the container on Alpine instead of Debian (experiment)
+# The container on Alpine (instead of Debian)
 
-**Result: it works.** `docker/Dockerfile.alpine` builds the same two images (bare server and the nginx + server
+**Result: it works.** `Dockerfile` builds the two images (bare server and the nginx + server
 "standalone" image) on Alpine Linux (musl libc). They pass everything the Debian images pass, at about **30 % of the size**.
-The Debian image stays the default; this page records what was tried and what to expect if you switch.
+The image used to be Debian (shelved in `docs/shelf/`, with notes on going back); this page records what was measured.
 
-Build and test it (nothing else changes):
-
-```
-make image DOCKERFILE=docker/Dockerfile.alpine IMAGE=rustbucket:alpine
-make smoke DOCKERFILE=docker/Dockerfile.alpine IMAGE=rustbucket:alpine-smoke
-make scan-image SCAN_IMAGE=rustbucket:alpine
-```
+Build and test it: `make image`, `make smoke`, `make scan-image`.
 
 ## Size (2026-11-21, same commit, security updates applied in both)
 

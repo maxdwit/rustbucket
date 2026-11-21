@@ -1,10 +1,5 @@
 # syntax=docker/dockerfile:1
-# EXPERIMENT: the same two images (stage "server" = bare server, stage "standalone" = nginx + server) on Alpine
-# (musl libc) instead of Debian (glibc). Build:  make image DOCKERFILE=docker/Dockerfile.alpine IMAGE=rustbucket:alpine
-# Result and caveats: docs/alpine.md. Not the default image.
-FROM rust:1-alpine AS build
-# rust:alpine builds for x86_64-unknown-linux-musl; libsqlite3-sys compiles SQLite from C, which needs gcc and musl headers
-RUN apk add --no-cache musl-dev gcc
+FROM rust:1@sha256:223cc32ddca8f3ee90c436dbc94b6b5f052ea7f9653c5201e9612f08ad7d21b8 AS build
 WORKDIR /src
 # Dependency layer: build with a stub main so source changes do not rebuild crates.
 COPY Cargo.toml Cargo.lock ./
@@ -17,14 +12,19 @@ COPY src ./src
 # copied files keep old mtimes; force cargo to rebuild the crate over the stub
 RUN touch src/main.rs src/lib.rs && cargo build --release
 
-# --- stage "server": the bare server (plain HTTP on :8080)
-FROM alpine:3 AS server
-# security updates at build time (same reason as in the Debian Dockerfile); the date argument re-runs this layer daily
+# --- stage "server": the bare server (plain HTTP on :8080). Used by the test scripts (--target server).
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS server
+# Security updates of the Debian packages at build time: the pinned base image is rebuilt by Debian only now and then,
+# while fixes (zlib, libc, openssl, ...) arrive in the security repository first. The date argument (passed by `make image`)
+# makes docker re-run this layer every day instead of reusing a stale cached one.
 ARG PKG_DATE=none
-RUN echo "package updates of $PKG_DATE" && apk upgrade --no-cache
-RUN adduser -S -D -H -u 10001 -s /sbin/nologin rustbucket \
+RUN echo "package updates of $PKG_DATE" \
+    && apt-get update && apt-get -y --no-install-recommends upgrade && apt-get clean && rm -r /var/lib/apt/lists
+RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin rustbucket \
     && mkdir /data /db && chown rustbucket /data /db
 COPY --from=build /src/target/release/rustbucket /usr/local/bin/rustbucket
+# build number: `make image` passes both (UTC date and short git commit); without them the server shows "dev" (kept
+# after the COPY so the expensive layers stay cached)
 ARG BUILD_DATE=unknown
 ARG GIT_COMMIT=unknown
 ENV RUSTBUCKET_BUILD_DATE=${BUILD_DATE} RUSTBUCKET_BUILD_COMMIT=${GIT_COMMIT}
@@ -32,22 +32,25 @@ LABEL org.opencontainers.image.created=${BUILD_DATE} org.opencontainers.image.re
 USER rustbucket
 ENV RUSTBUCKET_DATA_DIR=/data RUSTBUCKET_DATABASE_URL=sqlite:///db/rustbucket.db
 VOLUME ["/data", "/db"]
+# (no EXPOSE here: the bare server listens on :8080; the standalone image below exposes only its TLS port)
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 CMD ["rustbucket", "healthcheck"]
 ENTRYPOINT ["rustbucket"]
 CMD ["serve"]
 
-# --- stage "standalone" (the default target): nginx with a self-signed certificate in front of the server
+# --- stage "standalone" (the default): nginx with a self-signed ("snakeoil") certificate in front of the
+# server, both in this one container, both unprivileged. TLS on :8443; everything else stays inside.
 FROM server AS standalone
 USER root
-# bash: the entrypoint uses arrays and `wait -n`; GNU tar: `make backup` needs --transform/--exclude, which busybox tar lacks
-RUN apk add --no-cache nginx openssl curl bash tar \
-    && rm -f /etc/nginx/http.d/* \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nginx openssl curl \
+    && rm -rf /var/lib/apt/lists/* /etc/nginx/sites-enabled/* /etc/nginx/conf.d/* \
     && mkdir /certs && chown rustbucket /certs
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/entrypoint.sh /usr/local/bin/rustbucket-standalone
 COPY docker/healthcheck.sh /usr/local/bin/rustbucket-healthcheck
 RUN chmod 755 /usr/local/bin/rustbucket-standalone /usr/local/bin/rustbucket-healthcheck
 USER rustbucket
+# the server listens on loopback only; the one trusted proxy is the nginx next to it
 ENV RUSTBUCKET_LISTEN=127.0.0.1:8080 RUSTBUCKET_TRUSTED_PROXIES=127.0.0.1/32
 VOLUME ["/data", "/db", "/certs"]
 EXPOSE 8443

@@ -9,7 +9,7 @@ The targets pin the image names, ports, volumes and flags that the scripts and t
 
 | You want to | Run | Notes |
 |---|---|---|
-| build the image | `make image` | multi-stage `Dockerfile`; the default (last) stage is `standalone` |
+| build the image | `make image` | multi-stage `Dockerfile` on Alpine (old Debian one: `docs/shelf/`); the default (last) stage is `standalone` |
 | start it | `make run` | `https://localhost:8443/`, container `rustbucket`, volumes `rustbucket-{data,db,certs}` |
 | get the first admin password | `make password` | generated on the first start, printed once in the log |
 | create a user | `make user U=bob [ADMIN=1]` | password is asked for and goes through stdin; never put it in argv |
@@ -22,8 +22,7 @@ The targets pin the image names, ports, volumes and flags that the scripts and t
 | version | `make version`, `make bump-version V=X.Y.Z\|patch\|minor\|major` | version lives in `Cargo.toml`; images are stamped with date + commit by `make image`; bump needs python3 on the host and commits nothing |
 
 Variables you may override: `IMAGE`, `NAME`, `PORT`, `BIND` (`127.0.0.1` by default; `0.0.0.0` serves other devices),
-`TLS_NAMES` (names/addresses clients use; they go into the certificate), `DEST`, `RUST_IMAGE`, `DOCKERFILE` (default
-`Dockerfile`; `docker/Dockerfile.alpine` is the Alpine experiment, see `docs/alpine.md`: keep both passing `make smoke`).
+`TLS_NAMES` (names/addresses clients use; they go into the certificate), `DEST`, `RUST_IMAGE`.
 Do not add a target that bypasses these; extend the Makefile (and `make help`) instead, and keep it working with only
 `make`, `docker`, `curl`, `tar`, `openssl` and `bash` on the host (`make bump-version` additionally needs `python3`).
 

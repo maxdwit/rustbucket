@@ -6,13 +6,13 @@ All notable changes to this public preview. Newest first. The version is the one
 ## Unreleased (2026-11-21, after the first public commit)
 
 ### Added
-- **Alpine variant of the image (experiment)**: `docker/Dockerfile.alpine` builds the bare server and the nginx + server image on
-  Alpine (musl) instead of Debian; `make image` / `make smoke` take `DOCKERFILE=...`. It works: the full smoke test, the real
-  Nextcloud client suite and the Trivy scan pass, and the image is about 30 % of the size (standalone 205 MB -> 60 MB, bare
-  server 174 MB -> 45 MB; server memory after a 200 MB transfer 44 MB -> 10 MB; 200 MB download about 20 % slower).
-  Details, what had to differ (GNU tar and bash) and the caveats are in `docs/alpine.md`. Debian stays the default.
+- **The image is now Alpine (musl) instead of Debian, one Dockerfile**: the full smoke test, the real Nextcloud client suite and the
+  Trivy scan pass, and the image is about 30 % of the size (standalone 205 MB -> 60 MB, bare server 174 MB -> 45 MB; server memory
+  after a 200 MB transfer 44 MB -> 10 MB; 200 MB download on loopback about 20 % slower, no difference over a real network).
+  The runtime image carries GNU tar and bash (`make backup`, entrypoint). Base images are pinned by digest, `apk upgrade` re-runs daily.
+  The last Debian Dockerfile is kept for reference in `docs/shelf/`. Details and caveats: `docs/alpine.md`.
 - **Security scans in the Makefile and CI**: `make audit-deps` (`cargo audit` for RustSec advisories + `cargo deny` for advisories, licenses,
-  bans and sources) and `make scan-image` (Trivy, pinned version, over the built image: Debian packages incl. nginx/openssl/curl, and secrets
+  bans and sources) and `make scan-image` (Trivy, pinned version, over the built image: Alpine packages incl. nginx/openssl/curl, and secrets
   in layers; fails on fixable HIGH/CRITICAL findings). CI runs both daily as well, because advisories appear without any code change.
   SonarQube does not analyze Rust, so these are the Rust-side checks next to `clippy -D warnings`.
 - **`#![forbid(unsafe_code)]`** in the crate: our code uses none, and the compiler now guarantees it stays that way.
