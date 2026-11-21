@@ -9,12 +9,13 @@ BIND      ?= 127.0.0.1
 # names/addresses clients will use to reach the server; they go into the self-signed certificate
 TLS_NAMES ?= localhost,127.0.0.1
 RUST_IMAGE ?= rust:1
-# build number stamped into the image: UTC date and short commit ("-dirty" with uncommitted changes; "dev" without git)
-BUILD_ARGS = --build-arg BUILD_DATE=$$(date -u +%Y-%m-%dT%H:%M:%SZ) --build-arg GIT_COMMIT=$$(git describe --always --dirty --abbrev=7 2>/dev/null || echo unknown)
+# build number stamped into the image: UTC date and short commit ("-dirty" with uncommitted changes; "dev" without git);
+# PKG_DATE makes the Debian security-update layer re-run every day (see the Dockerfile)
+BUILD_ARGS = --build-arg PKG_DATE=$$(date -u +%Y%m%d) --build-arg BUILD_DATE=$$(date -u +%Y-%m-%dT%H:%M:%SZ) --build-arg GIT_COMMIT=$$(git describe --always --dirty --abbrev=7 2>/dev/null || echo unknown)
 
 .DEFAULT_GOAL := help
 .PHONY: help image run start stop restart rm logs status shell password user cert purge backup restore smoke \
-        test fmt clippy check audit-pii e2e version bump-version
+        test fmt clippy check audit-pii audit-deps scan-image e2e version bump-version
 
 help:
 	@echo "run it"
@@ -33,6 +34,8 @@ help:
 	@echo "  make check            fmt + clippy + all tests (inside a rust container)    [make test | fmt | clippy]"
 	@echo "  make version          the version in Cargo.toml and the commit the next image is stamped with"
 	@echo "  make bump-version V=0.2.0|patch|minor|major   change the version (needs python3 on the host; commits nothing)"
+	@echo "  make audit-deps       known vulnerabilities in the Rust dependencies: cargo audit (RustSec) + cargo deny (advisories, licenses, bans, sources)"
+	@echo "  make scan-image       CVEs in the built image (Debian packages incl. nginx/openssl/curl) with Trivy; fails on fixable HIGH/CRITICAL"
 	@echo "  make audit-pii        fail if the tree contains private addresses, home paths, or real-looking emails"
 	@echo "  make e2e              real Nextcloud sync client against a throw-away server (needs 'nextcloudcmd' on the host)"
 
@@ -132,6 +135,24 @@ check:
 
 audit-pii:
 	scripts/audit_pii.sh
+
+# Dependency scan. cargo-audit and cargo-deny are built once into a docker volume (first run takes a few minutes).
+# New advisories appear without any code change, so CI runs this daily as well. Policy: a vulnerability fails the run,
+# "unmaintained" notices are shown but do not (see deny.toml for the rest).
+TOOLS = docker run --rm -v "$(CURDIR)":/work -w /work -v rustbucket-cargo-registry:/usr/local/cargo/registry \
+        -v rustbucket-cargo-tools:/tools -e CARGO_INSTALL_ROOT=/tools -e CARGO_TARGET_DIR=/tmp/tools-target \
+        -e PATH=/tools/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin $(RUST_IMAGE)
+audit-deps:
+	$(TOOLS) sh -c 'for t in cargo-audit cargo-deny; do command -v $$t >/dev/null || cargo install $$t --locked || exit 1; done; cargo audit && cargo deny check'
+
+# Image scan with Trivy (pinned). The image is streamed into the scanner's own container: nothing is written to the host
+# and the docker socket is not handed to a third-party image. Fixed HIGH/CRITICAL CVEs and secrets in layers fail the run.
+TRIVY_IMAGE ?= aquasec/trivy:0.76.2
+SCAN_IMAGE  ?= $(IMAGE)
+scan-image:
+	@docker image inspect $(SCAN_IMAGE) >/dev/null 2>&1 || $(MAKE) image
+	docker save $(SCAN_IMAGE) | docker run --rm -i -v rustbucket-trivy-cache:/root/.cache --entrypoint sh $(TRIVY_IMAGE) -c \
+	  'cat > /tmp/image.tar && trivy image --input /tmp/image.tar --severity HIGH,CRITICAL --ignore-unfixed --scanners vuln,secret --exit-code 1'
 
 e2e:
 	scripts/e2e.sh

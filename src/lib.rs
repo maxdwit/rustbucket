@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)] // none of our code needs it; dependencies are covered by cargo audit/deny
 pub mod auth;
 pub mod avatar;
 pub mod buildinfo;

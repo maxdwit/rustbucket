@@ -1,13 +1,17 @@
 # Not run yet (this branch is a preview): it uses only `make` targets, like a human would.
+# New vulnerability advisories appear without any code change, so the two scans also run every day.
 name: ci
 on:
   pull_request:
   push:
     branches: [main, master]
+  schedule:
+    - cron: "23 4 * * *"
   workflow_dispatch:
 
 jobs:
   check:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,7 +19,21 @@ jobs:
       - run: make audit-pii
 
   smoke:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: make smoke          # builds the one-container image and probes it over TLS
+
+  deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make audit-deps     # cargo audit (RustSec) + cargo deny (advisories, licenses, bans, sources)
+
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make image
+      - run: make scan-image     # Trivy: fixable HIGH/CRITICAL CVEs and secrets in the image

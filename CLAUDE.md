@@ -18,6 +18,7 @@ The targets pin the image names, ports, volumes and flags that the scripts and t
 | end-to-end checks | `make smoke` (container over TLS), `make e2e` (real `nextcloudcmd`) | `smoke` needs only docker and curl |
 | backup / restore | `make backup`, `make restore FILE=...` | restore only fills **empty** volumes |
 | check for personal data | `make audit-pii` | run it before every commit |
+| scan dependencies / the image | `make audit-deps` (cargo audit + cargo deny), `make scan-image` (Trivy) | first `audit-deps` run builds the tools into a docker volume (minutes); a vulnerability fails the run, so fix or upgrade, do not silence it without a reason in `deny.toml` |
 | version | `make version`, `make bump-version V=X.Y.Z\|patch\|minor\|major` | version lives in `Cargo.toml`; images are stamped with date + commit by `make image`; bump needs python3 on the host and commits nothing |
 
 Variables you may override: `IMAGE`, `NAME`, `PORT`, `BIND` (`127.0.0.1` by default; `0.0.0.0` serves other devices),

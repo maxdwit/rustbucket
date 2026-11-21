@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::sync::Arc;

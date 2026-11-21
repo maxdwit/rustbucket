@@ -6,6 +6,11 @@ All notable changes to this public preview. Newest first. The version is the one
 ## Unreleased (2026-11-21, after the first public commit)
 
 ### Added
+- **Security scans in the Makefile and CI**: `make audit-deps` (`cargo audit` for RustSec advisories + `cargo deny` for advisories, licenses,
+  bans and sources) and `make scan-image` (Trivy, pinned version, over the built image: Debian packages incl. nginx/openssl/curl, and secrets
+  in layers; fails on fixable HIGH/CRITICAL findings). CI runs both daily as well, because advisories appear without any code change.
+  SonarQube does not analyze Rust, so these are the Rust-side checks next to `clippy -D warnings`.
+- **`#![forbid(unsafe_code)]`** in the crate: our code uses none, and the compiler now guarantees it stays that way.
 - **Left menu in the web client**: *My own files* (only what you own), *Shared with me* (incoming shares with owner,
   permission and date), *Shared* (what you share with others, with recipients and permissions) and *Trash*. The views
   are `?view=shared-with-me|shared`; no `view` means your own files, so old links keep working. Sync clients and
@@ -27,6 +32,10 @@ All notable changes to this public preview. Newest first. The version is the one
 - `make user` (and the other make targets) are described for AI agents in `CLAUDE.md`.
 
 ### Fixed
+- **zlib CVE-2026-85091 (HIGH) in the image**, found by the new `make scan-image`: the pinned Debian base image still had the old
+  zlib while the fix was already in Debian's security repository (libc6 and openssl updates were pending too). The image now
+  applies the Debian security updates at build time (`apt-get upgrade`, re-run daily through a date build argument that
+  `make image` passes), so it no longer depends on when the base image happens to be rebuilt.
 - **A failed upload could vanish silently** (SonarQube `javascript:S9383`, two findings): the file chooser and the drag-and-drop
   handler started the async upload without handling a failure, so an unexpected error was an unhandled rejection with no
   message. They now go through one helper that shows "Something went wrong. Please reload the page and try again."

@@ -14,6 +14,12 @@ RUN touch src/main.rs src/lib.rs && cargo build --release
 
 # --- stage "server": the bare server (plain HTTP on :8080). Used by the test scripts (--target server).
 FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS server
+# Security updates of the Debian packages at build time: the pinned base image is rebuilt by Debian only now and then,
+# while fixes (zlib, libc, openssl, ...) arrive in the security repository first. The date argument (passed by `make image`)
+# makes docker re-run this layer every day instead of reusing a stale cached one.
+ARG PKG_DATE=none
+RUN echo "package updates of $PKG_DATE" \
+    && apt-get update && apt-get -y --no-install-recommends upgrade && apt-get clean && rm -r /var/lib/apt/lists
 RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin rustbucket \
     && mkdir /data /db && chown rustbucket /data /db
 COPY --from=build /src/target/release/rustbucket /usr/local/bin/rustbucket
