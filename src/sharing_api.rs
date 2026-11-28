@@ -76,7 +76,11 @@ macro_rules! share_select {
     };
 }
 
-fn params(query: Option<&str>, headers: &HeaderMap, body: &[u8]) -> HashMap<String, String> {
+pub(crate) fn params(
+    query: Option<&str>,
+    headers: &HeaderMap,
+    body: &[u8],
+) -> HashMap<String, String> {
     fn pairs(s: &str, out: &mut HashMap<String, String>) {
         for kv in s.split('&').filter(|p| !p.is_empty()) {
             let (k, v) = kv.split_once('=').unwrap_or((kv, ""));

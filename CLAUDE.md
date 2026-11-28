@@ -46,7 +46,14 @@ self-signed certificate ("snakeoil") and proxies to `rustbucket serve` on `127.0
 ## Layout
 `src/` server (axum, sqlx/SQLite, askama templates in `templates/`, assets in `static/`), `migrations/` (forward-only
 SQL, each with a `.down.sql`), `tests/` (integration tests; `tests/fixtures/nc35` are recorded replies of stock
-Nextcloud 35), `scripts/` (end-to-end, differential, backup, fuzz, soak, smoke), `docs/`, `fuzz/` (cargo-fuzz targets).
+Nextcloud 35), `scripts/` (end-to-end, differential, backup, fuzz, soak, smoke), `docs/`, `fuzz/` (cargo-fuzz targets),
+`editor/` (the browser side of the live editor: `package.json` + lockfile, `Dockerfile`, `src/main.js`; its build output `static/editor.js`
+is committed).
+
+**JavaScript rules** (supply chain): the only npm project is `editor/`, built in a pinned container with `npm ci --ignore-scripts`. A new
+or changed package needs the human's OK; afterwards run `make editor-bundle` (rebuilds `static/editor.js` and `docs/js-dependencies.md`),
+`make audit-js` and `make editor-check`, and commit the lockfile, the bundle and the inventory together. Never edit `static/editor.js` by
+hand. The server image and the hosts must stay free of Node.
 
 ## Working rules
 - Do not push, tag, or add remotes unless the human asks. Commit only when asked; stage files by name.
@@ -68,4 +75,4 @@ Nextcloud 35), `scripts/` (end-to-end, differential, backup, fuzz, soak, smoke),
 
 ## Before you say "done"
 `make check` (fmt + clippy + tests), `make smoke` (if you touched the Dockerfile, `docker/`, the server's proxy/TLS
-handling or backup), `make audit-pii`. Report what you ran and what you could not run.
+handling or backup), `make audit-pii`, and `make audit-deps` + `make audit-js` when dependencies changed. Report what you ran and what you could not run.

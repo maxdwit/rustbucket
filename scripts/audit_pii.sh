@@ -13,7 +13,9 @@ scan() {  # description, regex (grep -E), optional filter-out regex
 }
 scan "private LAN addresses" '(^|[^0-9.])(192\.168\.[0-9]+\.[0-9]+|10\.[0-9]+\.[0-9]+\.[0-9]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+)' '(/[0-9]+|CIDR|trusted|proxy)'
 scan "home directories / user paths" '(/home/[a-z0-9_-]+|/Users/[A-Za-z0-9_-]+|C:\\Users\\)'
-scan "private hostnames" '[A-Za-z0-9-]+\.(internal|lan|local|home|corp|intranet)([^A-Za-z0-9_-]|$)'
+# the minified editor bundle is generated third-party code: `this.local`, `e.local` are property accesses, not hostnames
+# (its other scans stay on: addresses, home paths, e-mail)
+scan "private hostnames" '[A-Za-z0-9-]+\.(internal|lan|local|home|corp|intranet)([^A-Za-z0-9_-]|$)' '^static/editor\.js:'
 scan "email addresses (only example.* domains and noreply are allowed)" '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' '@\.?(([a-z0-9-]+\.)*example\.(org|com|net|test)|noreply|users\.noreply\.github\.com|localhost)'
 [ "$bad" = 0 ] && echo "audit-pii: clean" || { echo; echo "audit-pii: FOUND something above - replace it with an example value (alice, bob, example.com, 192.0.2.x)"; }
 exit $bad

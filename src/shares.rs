@@ -309,12 +309,26 @@ impl Store {
         user: &Owner,
         id: i64,
     ) -> Result<Option<(Node, Owner)>, FsError> {
+        Ok(self
+            .visible_perms_by_id(user, id)
+            .await?
+            .map(|(n, o, _)| (n, o)))
+    }
+
+    /// Like `visible_by_id`, plus what the user may do with it (`ALL` for their own files; for shares the
+    /// permissions of the mounts that contain the node, combined).
+    pub async fn visible_perms_by_id(
+        &self,
+        user: &Owner,
+        id: i64,
+    ) -> Result<Option<(Node, Owner, u32)>, FsError> {
         let Some(node) = self.node_by_id(id).await? else {
             return Ok(None);
         };
         if node.owner_id == user.id {
-            return Ok(Some((node, user.clone())));
+            return Ok(Some((node, user.clone(), ALL)));
         }
+        let mut found: Option<(Owner, u32)> = None;
         for m in self.mounts(user).await? {
             let inside = node.owner_id == m.owner.id
                 && (node.path == m.source.path
@@ -323,10 +337,13 @@ impl Store {
                         .strip_prefix(m.source.path.as_str())
                         .is_some_and(|r| r.starts_with('/')));
             if inside {
-                return Ok(Some((node, m.owner)));
+                found = Some(match found {
+                    Some((o, p)) => (o, p | m.perms),
+                    None => (m.owner, m.perms),
+                });
             }
         }
-        Ok(None)
+        Ok(found.map(|(o, p)| (node, o, p)))
     }
 
     /// Resolve a path of the viewer's tree (see module docs).

@@ -5,6 +5,8 @@ pub mod buildinfo;
 pub mod config;
 pub mod dav;
 pub mod db;
+pub mod direct;
+pub mod editor;
 pub mod error;
 pub mod login;
 pub mod mobile;

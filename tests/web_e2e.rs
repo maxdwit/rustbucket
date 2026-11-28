@@ -729,3 +729,298 @@ async fn browser_at_phone_width_does_not_scroll_sideways() -> WebDriverResult<()
 
 #[allow(dead_code)]
 fn _unused(_: &Path) {}
+
+/// The text of the editor; the other people's cursors add invisible word joiners (and their lines) to what the DOM shows.
+async fn editor_text(d: &WebDriver) -> WebDriverResult<String> {
+    let t = d.find(By::Css("#editor .cm-content")).await?.text().await?;
+    Ok(t.replace(['\u{2060}', '\n'], ""))
+}
+
+async fn wait_text(
+    d: &WebDriver,
+    what: &str,
+    want: impl Fn(&str) -> bool,
+) -> WebDriverResult<String> {
+    for _ in 0..150 {
+        let t = editor_text(d).await?;
+        if want(&t) {
+            return Ok(t);
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    Err(WebDriverError::Timeout(format!(
+        "{what}: got {:?}",
+        editor_text(d).await?
+    )))
+}
+
+/// Two browsers open the same Markdown file: typing in one shows up in the other, the page works under its
+/// content security policy (CodeMirror styles, remote cursors), and the autosave writes the merged text.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs chromedriver + chromium: run scripts/e2e_web.sh"]
+async fn browser_live_editor_two_browsers() -> WebDriverResult<()> {
+    let s = start().await;
+    seed(&s, "bob", &[("note.md", "hello")]).await;
+    let a = driver(1280, 900).await?;
+    let b = driver(1280, 900).await?;
+    let result = async {
+        login(&a, &s.base, "bob", "pw-bob").await?;
+        login(&b, &s.base, "bob", "pw-bob").await?;
+        // the way in: the row menu of the file list offers "Edit"
+        wait_for(&a, &row("note.md")).await?;
+        open_menu(&a, &row("note.md")).await?;
+        a.find(By::Css(format!("{} a.menu-link", row("note.md"))))
+            .await?
+            .click()
+            .await?;
+        wait_for(&a, "#editor .cm-content").await?;
+        b.goto(format!("{}/apps/files/edit?path=%2Fnote.md", s.base)).await?;
+        wait_for(&b, "#editor .cm-content").await?;
+        wait_text(&a, "initial text", |t| t.contains("hello")).await?;
+        wait_text(&b, "initial text", |t| t.contains("hello")).await?;
+        // the base theme CodeMirror injects at runtime was not blocked by the CSP
+        let overflow: String = a
+            .execute("return getComputedStyle(document.querySelector('.cm-scroller')).overflowX;", vec![])
+            .await?
+            .convert()?;
+        assert_eq!(overflow, "auto", "CodeMirror's styles are blocked");
+        // both see two people
+        for d in [&a, &b] {
+            for _ in 0..100 {
+                if d.find_all(By::Css("#ed-people .chip")).await?.len() >= 2 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            assert!(d.find_all(By::Css("#ed-people .chip")).await?.len() >= 2, "people list");
+        }
+        // typing in A shows up in B and the other way round
+        a.find(By::Css("#editor .cm-content")).await?.send_keys("ABC").await?;
+        wait_text(&b, "A's typing in B", |t| t.contains("ABC")).await?;
+        b.find(By::Css("#editor .cm-content")).await?.click().await?;
+        b.find(By::Css("#editor .cm-content")).await?.send_keys("XYZ").await?;
+        wait_text(&a, "B's typing in A", |t| t.contains("XYZ")).await?;
+        let (ta, tb) = (editor_text(&a).await?, editor_text(&b).await?);
+        assert_eq!(ta, tb, "both browsers show the same text");
+        // the remote cursor got its color although it is set as an inline style
+        let colored: bool = a
+            .execute(
+                "const c = document.querySelector('.cm-ySelectionCaret'); return !!c && getComputedStyle(c).backgroundColor !== 'rgba(0, 0, 0, 0)';",
+                vec![],
+            )
+            .await?
+            .convert()?;
+        assert!(colored, "the other person's cursor is not drawn in color");
+        // Undo needs a held button: a short click does nothing, one second does and rolls back BOTH people's typing
+        let undo = a.find(By::Css("#ed-undo")).await?;
+        assert!(undo.is_enabled().await?, "undo is enabled after edits");
+        hold(&a, &undo, 300).await?;
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        assert_eq!(editor_text(&a).await?, ta, "a short click must not undo");
+        hold(&a, &undo, 1300).await?;
+        wait_text(&a, "undo", |t| !t.contains("XYZ")).await?;
+        let (after_a, after_b) = (editor_text(&a).await?, wait_text(&b, "undo seen in B", |t| !t.contains("XYZ")).await?);
+        assert_eq!(after_a, after_b, "the rollback reaches the other browser");
+        assert!(after_a.contains("hello"), "the text that was there when the page opened is the floor: {after_a}");
+        // Redo (also held) puts it back
+        let redo = a.find(By::Css("#ed-redo")).await?;
+        assert!(redo.is_enabled().await?, "redo is enabled after an undo");
+        hold(&a, &redo, 1300).await?;
+        wait_text(&a, "redo", |t| t.contains("XYZ")).await?;
+        wait_text(&b, "redo seen in B", |t| t.contains("XYZ")).await?;
+        let ta = editor_text(&a).await?;
+        // autosave: the merged text is on disk after the idle time
+        let disk = s.data.join("bob/files/note.md");
+        let mut saved = String::new();
+        for _ in 0..200 {
+            saved = std::fs::read_to_string(&disk).unwrap_or_default();
+            if saved == ta {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        assert_eq!(saved, ta, "autosave");
+        assert!(wait_for(&a, "#ed-status").await?.text().await?.contains("saved"));
+        // Save & close: leaves for the file list, and what was typed last is on disk
+        a.find(By::Css("#editor .cm-content")).await?.send_keys("!").await?;
+        a.find(By::Css("#ed-close")).await?.click().await?;
+        wait_for(&a, "#files-root").await?;
+        assert!(a.current_url().await?.path().starts_with("/apps/files"));
+        assert!(std::fs::read_to_string(&disk).unwrap().contains('!'), "typed text is saved when closing");
+        Ok::<(), WebDriverError>(())
+    }
+    .await;
+    a.quit().await?;
+    b.quit().await?;
+    result
+}
+
+/// Press the mouse button on an element, keep it down for `ms` milliseconds, release.
+async fn hold(d: &WebDriver, el: &WebElement, ms: u64) -> WebDriverResult<()> {
+    d.action_chain()
+        .move_to_element_center(el)
+        .click_and_hold()
+        .perform()
+        .await?;
+    tokio::time::sleep(Duration::from_millis(ms)).await;
+    d.action_chain().release().perform().await
+}
+
+async fn bg(d: &WebDriver, css: &str) -> WebDriverResult<String> {
+    d.execute(
+        "return getComputedStyle(document.querySelector(arguments[0])).backgroundColor;",
+        vec![serde_json::json!(css)],
+    )
+    .await?
+    .convert()
+}
+
+/// The colour switch cycles auto -> dark -> light -> auto, the choice survives a reload (no flash: set before paint)
+/// and also reaches the editor (CodeMirror takes the page palette).
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs chromedriver + chromium: run scripts/e2e_web.sh"]
+async fn browser_dark_mode_switch() -> WebDriverResult<()> {
+    let s = start().await;
+    seed(&s, "bob", &[("note.md", "hello")]).await;
+    let d = driver(1280, 900).await?;
+    let result = async {
+        login(&d, &s.base, "bob", "pw-bob").await?;
+        let attr = || async {
+            d.execute(
+                "return document.documentElement.dataset.theme || 'auto';",
+                vec![],
+            )
+            .await?
+            .convert::<String>()
+        };
+        assert_eq!(attr().await?, "auto");
+        let light = bg(&d, "body").await?;
+        d.find(By::Css("#theme-toggle")).await?.click().await?;
+        assert_eq!(attr().await?, "dark");
+        assert_eq!(bg(&d, "body").await?, "rgb(14, 15, 18)", "dark palette");
+        // reload: the stored choice is applied before the first paint
+        d.refresh().await?;
+        wait_for(&d, "#files-root").await?;
+        assert_eq!(attr().await?, "dark");
+        assert_eq!(bg(&d, "body").await?, "rgb(14, 15, 18)");
+        // the editor is dark too
+        d.goto(format!("{}/apps/files/edit?path=%2Fnote.md", s.base))
+            .await?;
+        wait_for(&d, "#editor .cm-content").await?;
+        assert_eq!(bg(&d, "#editor .cm-editor").await?, "rgb(14, 15, 18)");
+        d.find(By::Css("#theme-toggle")).await?.click().await?;
+        assert_eq!(attr().await?, "light");
+        assert_eq!(
+            bg(&d, "#editor .cm-editor").await?,
+            light,
+            "light editor = the system light colour"
+        );
+        d.find(By::Css("#theme-toggle")).await?.click().await?;
+        assert_eq!(attr().await?, "auto");
+        Ok::<(), WebDriverError>(())
+    }
+    .await;
+    d.quit().await?;
+    result
+}
+
+/// An 800x600 PNG made in memory.
+fn png_bytes() -> Vec<u8> {
+    let img = image::RgbImage::from_fn(800, 600, |x, y| {
+        image::Rgb([(x % 256) as u8, (y % 256) as u8, 128])
+    });
+    let mut out = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+    out.into_inner()
+}
+
+async fn transform(d: &WebDriver) -> WebDriverResult<String> {
+    d.execute(
+        "return document.querySelector('.viewer-img').style.transform;",
+        vec![],
+    )
+    .await?
+    .convert()
+}
+
+/// A click on a picture shows it full screen instead of downloading it; zoom works (buttons, wheel); the X closes it;
+/// videos get a player; the file stays downloadable from the row menu.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs chromedriver + chromium: run scripts/e2e_web.sh"]
+async fn browser_image_and_video_viewer() -> WebDriverResult<()> {
+    let s = start().await;
+    seed(
+        &s,
+        "bob",
+        &[("clip.webm", "not a real video"), ("note.md", "x")],
+    )
+    .await;
+    std::fs::write(s.data.join("bob/files/pic.png"), png_bytes()).unwrap();
+    std::fs::write(s.data.join("bob/files/pic2.png"), png_bytes()).unwrap();
+    seed(&s, "bob", &[]).await;
+    let d = driver(1280, 900).await?;
+    let result = async {
+        login(&d, &s.base, "bob", "pw-bob").await?;
+        wait_for(&d, &row("pic.png")).await?;
+        // text files are not media rows; images and the video are
+        assert!(d.find_all(By::Css(format!("{}[data-media]", row("note.md")))).await?.is_empty());
+        assert_eq!(wait_for(&d, &format!("{}[data-media=video]", row("clip.webm"))).await?.tag_name().await?, "li");
+        // click on the picture: the viewer opens with the picture, nothing is downloaded
+        d.find(By::Css(format!("{} .name a", row("pic.png")))).await?.click().await?;
+        wait_for(&d, ".viewer .viewer-img").await?;
+        assert!(d.current_url().await?.path().starts_with("/apps/files"));
+        for _ in 0..50 {
+            let w: i64 = d.execute("return document.querySelector('.viewer-img').naturalWidth;", vec![]).await?.convert()?;
+            if w == 800 { break; }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let w: i64 = d.execute("return document.querySelector('.viewer-img').naturalWidth;", vec![]).await?.convert()?;
+        assert_eq!(w, 800, "the picture loaded (CSP allows it)");
+        assert!(transform(&d).await?.contains("scale(1)"));
+        // zoom with the buttons, then with the mouse wheel, then back to fit
+        d.find(By::Css(".viewer-btn[aria-label='Zoom in']")).await?.click().await?;
+        assert!(transform(&d).await?.contains("scale(1.5)"), "{}", transform(&d).await?);
+        d.find(By::Css(".viewer-btn[aria-label='Zoom in']")).await?.click().await?;
+        assert!(wait_for(&d, ".viewer.zoomed").await.is_ok());
+        d.execute(
+            "document.querySelector('.viewer-stage').dispatchEvent(new WheelEvent('wheel', {deltaY: -400, clientX: 640, clientY: 450, bubbles: true, cancelable: true}));",
+            vec![],
+        )
+        .await?;
+        let t = transform(&d).await?;
+        let scale: f64 = t.split("scale(").nth(1).unwrap().trim_end_matches(')').parse().unwrap();
+        assert!(scale > 2.25, "the wheel zooms further: {t}");
+        d.find(By::Css(".viewer-btn[aria-label='Fit to screen']")).await?.click().await?;
+        assert!(transform(&d).await?.contains("scale(1)"));
+        // next picture with the arrow key, then close with the X at the top right
+        d.find(By::Css("body")).await?.send_keys(Key::Right + "").await?;
+        for _ in 0..50 {
+            let alt: String = d.execute("return document.querySelector('.viewer-img').alt;", vec![]).await?.convert()?;
+            if alt == "pic2.png" { break; }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let alt: String = d.execute("return document.querySelector('.viewer-img').alt;", vec![]).await?.convert()?;
+        assert_eq!(alt, "pic2.png");
+        let (right, top): (f64, f64) = {
+            let v: Vec<f64> = d.execute("const r=document.querySelector('.viewer-close').getBoundingClientRect(); return [window.innerWidth-r.right, r.top];", vec![]).await?.convert()?;
+            (v[0], v[1])
+        };
+        assert!(right < 40.0 && top < 40.0, "X is in the top right corner: {right} {top}");
+        d.find(By::Css(".viewer-close")).await?.click().await?;
+        gone(&d, ".viewer").await?;
+        // the video: a player instead of a download
+        d.find(By::Css(format!("{} .name a", row("clip.webm")))).await?.click().await?;
+        wait_for(&d, ".viewer video[controls]").await?;
+        assert!(d.find_all(By::Css(".viewer-btn[aria-label='Zoom in']")).await?.iter().all(|_| true));
+        d.find(By::Css("body")).await?.send_keys(Key::Escape + "").await?;
+        gone(&d, ".viewer").await?;
+        // the file is still downloadable from the menu
+        open_menu(&d, &row("pic.png")).await?;
+        let href = d.find(By::Css(format!("{} a.menu-link[download]", row("pic.png")))).await?.attr("href").await?.unwrap();
+        assert!(href.ends_with("/pic.png"), "{href}");
+        Ok::<(), WebDriverError>(())
+    }
+    .await;
+    d.quit().await?;
+    result
+}

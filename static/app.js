@@ -2,6 +2,26 @@
 // same DAV/OCS endpoints the sync clients use, with the session cookie plus the X-CSRF-Token header.
 (() => {
   'use strict';
+  // colour theme switch: auto (system) -> dark -> light; static/theme.js applies the stored choice at page load
+  const themeBtn = document.getElementById('theme-toggle');
+  if (themeBtn) {
+    const THEMES = ['auto', 'dark', 'light'];
+    const ICON = { auto: '\u25D0', dark: '\u263E', light: '\u2600' };
+    const get = () => { try { const t = localStorage.getItem('rbTheme'); return THEMES.includes(t) ? t : 'auto'; } catch (_) { return 'auto'; } };
+    const paint = () => {
+      const t = get();
+      themeBtn.textContent = ICON[t];
+      themeBtn.title = `Colour theme: ${t} (click to change)`;
+      themeBtn.setAttribute('aria-label', themeBtn.title);
+    };
+    themeBtn.addEventListener('click', () => {
+      const next = THEMES[(THEMES.indexOf(get()) + 1) % THEMES.length];
+      try { if (next === 'auto') localStorage.removeItem('rbTheme'); else localStorage.setItem('rbTheme', next); } catch (_) { /* ignore */ }
+      if (next === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = next;
+      paint();
+    });
+    paint();
+  }
   const meta = (n) => document.querySelector(`meta[name="${n}"]`)?.content || '';
   const csrf = meta('csrf-token');
   const main = document.getElementById('main');

@@ -1,0 +1,19 @@
+{
+  "name": "rustbucket-editor",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Browser side of the live editor (CodeMirror 6 + Yjs). Built into ../static/editor.js, see ../docs/js-dependencies.md",
+  "license": "WTFPL",
+  "dependencies": {
+    "@codemirror/commands": "6.11.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.44.2",
+    "lib0": "0.2.120",
+    "y-codemirror.next": "0.3.6",
+    "y-protocols": "1.0.7",
+    "yjs": "13.6.33"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

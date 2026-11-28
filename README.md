@@ -10,6 +10,9 @@ previews, search) and has its own **web UI**.
 - Files are stored under their **real names** on disk (`data/<user>/files/...`); the database is only an index.
 - Users and groups, user/group shares with the Nextcloud permission bits, trash bin and file versions.
 - Verified against stock Nextcloud 35.0.3 with differential tests and with the real sync clients (`nextcloudcmd`, GUI client).
+- **Live editor** for text files, several people typing at the same time (see below), also from the Nextcloud mobile apps.
+- Web UI with a left menu (own files, shared with me, shared, trash), multi-select, an **image and video viewer** with zoom, and a
+  **dark mode** (auto, dark or light).
 - Out of scope: public links, federation, apps (calendar, contacts, talk, ...), end-to-end encryption, LDAP.
 
 ## Try it - one container, nothing else needed
@@ -39,15 +42,43 @@ smoke test, and the test targets (no Rust toolchain is needed on the host, cargo
 | [docs/upgrade.md](docs/upgrade.md) | upgrading and rolling back |
 | [docs/operations.md](docs/operations.md) | health, logs, metrics, disk space, troubleshooting |
 | [docs/security.md](docs/security.md) | security model and hardening |
+| [docs/js-dependencies.md](docs/js-dependencies.md) | the JavaScript in the browser bundle, with versions and licenses; how CVEs are watched |
 | [docs/alpine.md](docs/alpine.md) | why the image is Alpine, sizes, differences; the old Debian Dockerfile is in `docs/shelf/` |
 | [CHANGELOG.md](CHANGELOG.md) | what changed, including every fix |
 | [CLAUDE.md](CLAUDE.md) | instructions for AI agents (how to use the Makefile, rules for changes) |
 
+## The web UI: live editor, viewer, dark mode
+
+- **Live editor.** A click or tap on a `.md`, `.txt`, `.sh`, `.bash`, `.py`, `.json`, `.yml`, `.yaml` or `.conf` file opens it in an
+  Etherpad-style editor: everybody who may **read** the file sees changes live, only users with **change** permission can type
+  (the server enforces that, not the browser). The text is saved automatically and with *Save & close* like a normal upload
+  (version history and sync clients see it). *Undo* and *Redo* roll back everybody's changes and must be held for one second.
+  The Nextcloud Android app opens text files in the same editor (direct editing). It is built on Yjs (`yrs` on the server,
+  CodeMirror 6 in the browser); switch it off with `RUSTBUCKET_EDITOR=false`. Behind your own reverse proxy it needs WebSocket
+  support ([docs/install.md](docs/install.md)).
+- **Viewer.** A click on a PNG, JPEG, GIF, WebP, BMP, WebM or MP4 file shows it full screen; zoom with the mouse wheel, pinch,
+  `+`/`-` or double click, move it when zoomed, `X` (top right) or Esc closes, arrows go to the next item. *Download* is in the row menu.
+- **Dark mode.** The button in the top bar cycles auto (follows the system), dark and light.
+- The few JavaScript files are listed with versions and licenses in [docs/js-dependencies.md](docs/js-dependencies.md).
+
 ## Tests
 
-`make check` runs fmt, clippy and the ~130 unit and integration tests; `make smoke` exercises the container over TLS
-(30 MB streamed upload, chunked upload with a gap, restart, backup, purge, restore). Further scripts in `scripts/` need extra tools on the host:
-`e2e.sh` (real `nextcloudcmd`), `e2e_web.sh` (Chromium), `diff_*.py` (against a stock Nextcloud container),
-`backup_restore_test.sh`, `fuzz.sh` (nightly toolchain, cargo-fuzz), `soak.sh` (10 parallel clients for an hour).
+Everything runs in containers; the first column is what you type.
+
+| Command | What it checks | Needs on the host |
+|---|---|---|
+| `make check` | rustfmt, clippy (warnings are errors) and the unit and integration tests | docker |
+| `make smoke` | builds the image, starts it, probes it over TLS: 30 MB streamed upload, chunked upload with a gap, live editor WebSocket through nginx, restart, backup, purge, restore, login throttle | docker, curl |
+| `make audit-deps` | known vulnerabilities in the Rust dependencies (`cargo audit`, `cargo deny`) | docker |
+| `make audit-js` | known vulnerabilities in the editor's JavaScript (`npm audit`, registry signatures) | docker |
+| `make editor-check` | the committed `static/editor.js` is exactly what the lockfile builds | docker |
+| `make scan-image` | CVEs and secrets in the built image (Trivy) | docker |
+| `make audit-pii` | no private addresses, home paths or real-looking e-mail addresses in the tree | - |
+| `scripts/e2e.sh` | a real Nextcloud sync client (`nextcloudcmd`) against a throw-away server | `nextcloudcmd` |
+| `scripts/e2e_web.sh` | the web UI in Chromium: upload, share, viewer, dark mode, two browsers in the live editor | `chromium`, `chromedriver` |
+| `scripts/diff_*.py` | the same requests against stock Nextcloud and rustbucket, differences listed | a Nextcloud container |
+| `scripts/backup_restore_test.sh` | backup and restore round trip | docker |
+| `scripts/fuzz.sh` | fuzzing of parsers (nightly toolchain, `cargo-fuzz`) | rust nightly |
+| `scripts/soak.sh` | 10 parallel clients for an hour | docker |
 
 License: WTFPL (see `LICENSE`).

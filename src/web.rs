@@ -41,7 +41,7 @@ use crate::view::{Item, ViewCtx};
 const CSRF_COOKIE: &str = "rb_csrf";
 
 /// App pages: scripts and styles only from this origin, nothing inline.
-const CSP_APP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; \
+const CSP_APP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self'; \
      connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 /// The login page keeps the small inline style of the other pre-login pages.
 const CSP_LOGIN: &str = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
@@ -99,7 +99,7 @@ pub fn router() -> Router<AppState> {
 
 // ---------------------------------------------------------------- responses
 
-fn secure_headers(r: &mut Response, csp: &'static str) {
+fn secure_headers(r: &mut Response, csp: &str) {
     let h = r.headers_mut();
     h.insert(
         header::CONTENT_TYPE,
@@ -117,11 +117,11 @@ fn secure_headers(r: &mut Response, csp: &'static str) {
     );
     h.insert(
         header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static(csp),
+        HeaderValue::from_str(csp).unwrap_or_else(|_| HeaderValue::from_static(CSP_APP)),
     );
 }
 
-fn render(status: StatusCode, t: &impl Template, csp: &'static str) -> Response {
+fn render(status: StatusCode, t: &impl Template, csp: &str) -> Response {
     match t.render() {
         Ok(body) => {
             let mut r = (status, body).into_response();
@@ -166,6 +166,15 @@ pub struct Web {
 }
 
 impl Web {
+    /// The identity of a direct-editing session (see direct.rs); it is only ever used by the editor routes.
+    pub(crate) fn from_direct(user: AuthUser, sid: String) -> Self {
+        Web {
+            csrf: csrf_token_for(&sid),
+            user,
+            sid,
+        }
+    }
+
     /// Form posts carry the token as a hidden field.
     fn check(&self, token: &str) -> Result<(), Response> {
         if crate::login::ct_eq(token, &self.csrf) {
@@ -233,6 +242,8 @@ struct Chrome {
     uid_enc: String,
     display: String,
     is_admin: bool,
+    /// shown inside a mobile app's web view: no top bar
+    app: bool,
 }
 
 impl Chrome {
@@ -244,6 +255,7 @@ impl Chrome {
             uid_enc: enc(&w.user.uid),
             display: w.user.display_name.clone(),
             is_admin: w.user.is_admin,
+            app: false,
         }
     }
 }
@@ -455,6 +467,11 @@ struct Row {
     can_share: bool,
     can_versions: bool,
     can_delete: bool,
+    /// a .md/.txt file: the menu offers the live editor ("Edit" with write permission, else "View")
+    text_file: bool,
+    can_edit: bool,
+    /// an image or a video the viewer can show ("image" / "video"); a click opens it instead of downloading
+    media: Option<&'static str>,
     delete_label: &'static str,
     /// second line under the name (who it is shared with / permission / date), shared views only
     sub: Option<String>,
@@ -652,6 +669,18 @@ fn sort_rows(rows: &mut [Row]) {
     });
 }
 
+/// What the in-page viewer can show: images (PNG, JPEG, GIF, WebP, BMP) and videos (WebM, MP4).
+fn media_kind(n: &crate::storage::Node) -> Option<&'static str> {
+    if n.is_dir {
+        return None;
+    }
+    match n.mimetype.as_str() {
+        "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/bmp" => Some("image"),
+        "video/webm" | "video/mp4" => Some("video"),
+        _ => None,
+    }
+}
+
 /// One list row for an item the viewer can see. `link` is where a folder row leads.
 fn make_row(w: &Web, it: &Item, link: String, boost: bool) -> Row {
     let n = &it.node;
@@ -687,6 +716,9 @@ fn make_row(w: &Web, it: &Item, link: String, boost: bool) -> Row {
         can_share: it.extra.perms.is_none(),
         can_versions: !n.is_dir && it.extra.perms.is_none(),
         can_delete: l.contains('D'),
+        text_file: !n.is_dir && crate::editor::editable_name(&n.name),
+        can_edit: l.contains('W'),
+        media: media_kind(n),
         delete_label: if root { "Remove share" } else { "Delete" },
         is_dir: n.is_dir,
         name: n.name.clone(),
@@ -1699,6 +1731,84 @@ async fn group_remove_member(
     }
 }
 
+// ---------------------------------------------------------------- live editor page
+
+#[derive(Template)]
+#[template(path = "editor.html")]
+struct EditorPage {
+    chrome: Chrome,
+    fileid: i64,
+    name: String,
+    can_edit: bool,
+    /// CSP nonce for the styles CodeMirror adds at runtime
+    nonce: String,
+    /// the folder the file lives in, for the way back
+    back: String,
+}
+
+/// The editor page for a path of the viewer's tree, or for a file id (direct editing from the mobile apps). `only` is the
+/// one file a direct session may open; `app` hides the top bar (a web view of the mobile app).
+pub(crate) async fn editor_page(
+    st: &AppState,
+    w: &Web,
+    path: &str,
+    id: Option<i64>,
+    only: Option<i64>,
+    app: bool,
+) -> Response {
+    let me = Owner {
+        id: w.user.id,
+        uid: w.user.uid.clone(),
+    };
+    let mut back = String::new();
+    let (node, can_edit) = if let Some(id) = id {
+        match crate::editor::access(st, &me, id).await {
+            Some((o, _)) => (o.node, o.can_edit),
+            None => return (StatusCode::NOT_FOUND, "not found").into_response(),
+        }
+    } else {
+        let Ok(path) = paths::normalize(path) else {
+            return (StatusCode::NOT_FOUND, "not found").into_response();
+        };
+        let res = match st.store.resolve(&me, &path).await {
+            Ok(r) => r,
+            Err(e) => return server_error(e),
+        };
+        let node = match st.store.get(&res.owner, &res.path).await {
+            Ok(Some(n)) if !n.is_dir && crate::editor::editable_name(&n.name) => n,
+            Ok(_) => return (StatusCode::NOT_FOUND, "not found").into_response(),
+            Err(e) => return server_error(e),
+        };
+        back = path
+            .trim_matches('/')
+            .rsplit_once('/')
+            .map_or(String::new(), |(d, _)| d.to_string());
+        (node, res.can(shares::UPDATE))
+    };
+    if only.is_some_and(|f| f != node.fileid) {
+        return (StatusCode::FORBIDDEN, "forbidden").into_response();
+    }
+    let nonce = crate::auth::random_token(16);
+    let csp = format!(
+        "default-src 'none'; script-src 'self'; style-src 'self' 'nonce-{nonce}'; style-src-attr 'unsafe-inline'; \
+         img-src 'self' data: blob:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+    );
+    let mut chrome = Chrome::new(w);
+    chrome.app = app;
+    render(
+        StatusCode::OK,
+        &EditorPage {
+            chrome,
+            fileid: node.fileid,
+            name: node.name,
+            can_edit,
+            nonce,
+            back: enc_path(&back),
+        },
+        &csp,
+    )
+}
+
 // ---------------------------------------------------------------- static assets
 
 async fn static_asset(Path(name): Path<String>) -> Response {
@@ -1714,6 +1824,22 @@ async fn static_asset(Path(name): Path<String>) -> Response {
         "htmx.min.js" => (
             include_bytes!("../static/htmx.min.js"),
             "text/javascript; charset=utf-8",
+        ),
+        "viewer.js" => (
+            include_bytes!("../static/viewer.js"),
+            "text/javascript; charset=utf-8",
+        ),
+        "theme.js" => (
+            include_bytes!("../static/theme.js"),
+            "text/javascript; charset=utf-8",
+        ),
+        "editor.js" => (
+            include_bytes!("../static/editor.js"),
+            "text/javascript; charset=utf-8",
+        ),
+        "editor.css" => (
+            include_bytes!("../static/editor.css"),
+            "text/css; charset=utf-8",
         ),
         _ => return StatusCode::NOT_FOUND.into_response(),
     };

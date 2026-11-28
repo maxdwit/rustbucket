@@ -30,6 +30,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: make audit-deps     # cargo audit (RustSec) + cargo deny (advisories, licenses, bans, sources)
+      - run: make audit-js       # npm audit + signatures for the editor's JavaScript
+      - run: make editor-check   # the committed bundle is what the lockfile builds
 
   image-scan:
     runs-on: ubuntu-latest

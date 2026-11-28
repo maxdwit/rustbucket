@@ -25,10 +25,11 @@
     <span aria-hidden="true">Name</span><span aria-hidden="true">Size</span><span aria-hidden="true">Modified</span><span></span>
   </li>
   {% for r in rows %}
-  <li class="row" data-path="{{ r.path }}" data-name="{{ r.name }}" data-dir="{% if r.is_dir %}1{% else %}0{% endif %}" data-can-move="{% if r.can_move %}1{% else %}0{% endif %}" data-can-delete="{% if r.can_delete %}1{% else %}0{% endif %}"{% if r.can_move %} draggable="true"{% endif %}>
+  <li class="row" data-path="{{ r.path }}" data-name="{{ r.name }}" data-dir="{% if r.is_dir %}1{% else %}0{% endif %}"{% if let Some(m) = r.media %} data-media="{{ m }}"{% endif %} data-can-move="{% if r.can_move %}1{% else %}0{% endif %}" data-can-delete="{% if r.can_delete %}1{% else %}0{% endif %}"{% if r.can_move %} draggable="true"{% endif %}>
     <input type="checkbox" class="sel" aria-label="Select {{ r.name }}">
     <div class="name">
       {% if r.is_dir %}<a href="{{ r.link }}"{% if r.boost %} hx-get="{{ r.link }}" hx-target="#files-root" hx-push-url="true"{% endif %}>
+      {% else if r.text_file %}<a href="/apps/files/edit?path={{ r.path|urlencode_strict }}">
       {% else %}<a href="{{ r.download }}" download>{% endif %}
         {% if let Some(t) = r.thumb %}<img class="thumb" loading="lazy" src="{{ t }}" alt="">{% else %}<span class="icon" aria-hidden="true">{{ r.icon }}</span>{% endif %}
         <span class="text">{{ r.name }}</span></a>
@@ -41,10 +42,12 @@
     <span class="meta mtime">{{ r.mtime }}</span>
     <span class="actions">
       {% if r.can_share %}<button type="button" class="icon-btn share{% if r.shared_out %} on{% endif %}" data-action="share" title="Share" aria-label="Share {{ r.name }}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>{% endif %}
-      {% if r.can_rename || r.can_move || r.can_versions || r.can_delete %}
+      {% if r.text_file || r.media.is_some() || r.can_rename || r.can_move || r.can_versions || r.can_delete %}
       <details class="menu">
         <summary class="icon-btn" title="More actions" aria-label="More actions for {{ r.name }}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></summary>
         <div class="menu-items">
+          {% if r.text_file %}<a class="menu-link" href="/apps/files/edit?path={{ r.path|urlencode_strict }}">{% if r.can_edit %}Edit{% else %}View{% endif %}</a>{% endif %}
+          {% if r.text_file || r.media.is_some() %}<a class="menu-link" href="{{ r.download }}" download>Download</a>{% endif %}
           {% if r.can_rename %}<button type="button" data-action="rename">Rename</button>{% endif %}
           {% if r.can_move %}<button type="button" data-action="move">Move</button>{% endif %}
           {% if r.can_versions %}<button type="button" data-action="versions">Versions</button>{% endif %}

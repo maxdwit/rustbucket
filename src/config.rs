@@ -33,6 +33,10 @@ pub struct Config {
     pub versions_max: u32,
     /// Bearer token for `GET /metrics`; the endpoint does not exist (404) while this is unset.
     pub metrics_token: Option<String>,
+    /// The live editor for .md/.txt files (WebSocket); `false` makes its routes answer 404.
+    pub editor: bool,
+    /// Largest text the live editor opens or keeps (bytes).
+    pub editor_max_bytes: u64,
 }
 
 impl Default for Config {
@@ -50,6 +54,8 @@ impl Default for Config {
             version_retention_days: 90,
             versions_max: 50,
             metrics_token: None,
+            editor: true,
+            editor_max_bytes: 2 << 20,
         }
     }
 }
@@ -134,6 +140,12 @@ impl Config {
         }
         if let Some(v) = lookup("RUSTBUCKET_VERSIONS_MAX") {
             self.versions_max = parse("RUSTBUCKET_VERSIONS_MAX", &v)?;
+        }
+        if let Some(v) = lookup("RUSTBUCKET_EDITOR") {
+            self.editor = parse("RUSTBUCKET_EDITOR", &v)?;
+        }
+        if let Some(v) = lookup("RUSTBUCKET_EDITOR_MAX_BYTES") {
+            self.editor_max_bytes = parse("RUSTBUCKET_EDITOR_MAX_BYTES", &v)?;
         }
         if let Some(v) = lookup("RUSTBUCKET_MAX_FILE_SIZE") {
             self.max_file_size = parse("RUSTBUCKET_MAX_FILE_SIZE", &v)?;

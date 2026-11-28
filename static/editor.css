@@ -1,0 +1,19 @@
+.editor-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem; }
+.editor-head h1 { margin: 0; font-size: 1.25rem; }
+.editor-head .back { margin-right: .25rem; }
+.people .chip { display: inline-block; padding: 0 .5rem; margin-left: .25rem; border-radius: 1rem; color: #fff; font-size: .85rem; }
+#editor { border: 1px solid var(--line); border-radius: 4px; min-height: 60vh; margin-top: .75rem; }
+#editor .cm-editor { min-height: 60vh; }
+#editor .cm-editor.cm-focused { outline: 2px solid var(--accent); }
+.hold { position: relative; overflow: hidden; }
+.hold.holding::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); animation: hold-fill 1s linear forwards; }
+@keyframes hold-fill { from { width: 0; } to { width: 100%; } }
+.hold-group { display: inline-flex; gap: .35rem; }
+.close-btn { padding: .25rem .6rem; border: 1px solid var(--accent); border-radius: 4px; text-decoration: none; }
+/* CodeMirror follows the page palette (light, dark or system); the ids beat the styles CodeMirror adds at runtime */
+#editor .cm-editor { background: var(--bg); color: var(--text); }
+#editor .cm-editor .cm-gutters { background: var(--panel); color: var(--text); border-right: 1px solid var(--line); }
+#editor .cm-editor .cm-activeLine { background: #8882; }
+#editor .cm-editor .cm-activeLineGutter { background: #8883; }
+#editor .cm-editor .cm-cursor, #editor .cm-editor .cm-dropCursor { border-left-color: var(--text); }
+#editor .cm-editor .cm-selectionBackground, #editor .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--sel); }

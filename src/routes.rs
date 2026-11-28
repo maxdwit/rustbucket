@@ -32,6 +32,8 @@ pub struct AppState {
     pub throttle_hard: Arc<Throttle>,
     pub store: crate::storage::Store,
     pub metrics: Arc<crate::ops::Metrics>,
+    /// open rooms of the live editor
+    pub editors: Arc<crate::editor::Editors>,
 }
 
 impl AppState {
@@ -67,6 +69,7 @@ impl AppState {
             throttle_hard,
             store,
             metrics: crate::ops::shared(),
+            editors: Arc::default(),
         }
     }
 }
@@ -77,11 +80,11 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route(
             "/ocs/v1.php/cloud/capabilities",
-            get(|q, h| capabilities(Version::V1, q, h)),
+            get(|st, p, q, h| capabilities(Version::V1, st, p, q, h)),
         )
         .route(
             "/ocs/v2.php/cloud/capabilities",
-            get(|q, h| capabilities(Version::V2, q, h)),
+            get(|st, p, q, h| capabilities(Version::V2, st, p, q, h)),
         )
         .route(
             "/ocs/v1.php/cloud/user",
@@ -133,6 +136,8 @@ pub fn router(state: AppState) -> Router {
         .merge(crate::sharing_api::router())
         .merge(crate::trashbin::router())
         .merge(crate::web::router())
+        .merge(crate::editor::router())
+        .merge(crate::direct::router())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             crate::ops::layer,
@@ -202,12 +207,20 @@ pub fn capabilities_json() -> Value {
     })
 }
 
-async fn capabilities(version: Version, RawQuery(q): RawQuery, headers: HeaderMap) -> Response {
-    ocs::respond(
-        version,
-        ocs::negotiate(q.as_deref(), &headers),
-        capabilities_json(),
-    )
+async fn capabilities(
+    version: Version,
+    State(st): State<AppState>,
+    auth::Peer(peer): auth::Peer,
+    RawQuery(q): RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    let mut caps = capabilities_json();
+    if st.config.editor {
+        // the mobile apps open text files in a web view through this (see direct.rs); stock advertises it with absolute URLs
+        let base = crate::proxy::external_base_url(&st.config, peer, &headers);
+        caps["capabilities"]["files"]["directEditing"] = crate::direct::capability(&base);
+    }
+    ocs::respond(version, ocs::negotiate(q.as_deref(), &headers), caps)
 }
 
 async fn health(State(s): State<AppState>) -> Response {

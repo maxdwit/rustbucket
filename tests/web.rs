@@ -328,6 +328,8 @@ async fn app_pages_have_a_strict_csp_and_serve_their_assets() {
             r.body.contains("<meta name=\"csrf-token\"")
                 && r.body.contains("/static/app.js")
                 && r.body.contains("/static/htmx.min.js")
+                && r.body.contains("/static/theme.js")
+                && r.body.contains("id=\"theme-toggle\"")
         );
         assert!(r.body.contains("allowEval\":false"));
     }
@@ -335,6 +337,8 @@ async fn app_pages_have_a_strict_csp_and_serve_their_assets() {
         ("app.js", "text/javascript"),
         ("app.css", "text/css"),
         ("htmx.min.js", "text/javascript"),
+        ("theme.js", "text/javascript"),
+        ("viewer.js", "text/javascript"),
     ] {
         let r = send(&e, "GET", &format!("/static/{name}?v=1"), &[], "").await;
         assert_eq!(r.status, StatusCode::OK, "{name}");
@@ -871,14 +875,14 @@ async fn share_icon_in_front_menu_behind_and_the_multi_select_markup() {
     ] {
         assert!(top.contains(id), "{id}");
     }
-    // bob inside the read-only share: nothing to do with the file, so no icon, no menu, both flags off
+    // bob inside the read-only share: no share icon and no action button (a text file still offers "View"), both flags off
     let bob = login(&e, "bob", "pw-bob").await;
     let inside = get(&e, &bob, "/apps/files/?view=shared-with-me&dir=%2FDocs")
         .await
         .body;
     let f = li(&inside, "f.txt");
     assert!(
-        !f.contains("class=\"menu\"") && !f.contains("icon-btn share"),
+        !f.contains("data-action=") && !f.contains("icon-btn share") && f.contains(">View</a>"),
         "{f}"
     );
     assert!(
@@ -922,7 +926,7 @@ async fn admin_menu_about_page_and_the_build_id_in_asset_links() {
             .starts_with(&format!("v{}", env!("CARGO_PKG_VERSION")))
     );
     // the assets are keyed by the build id: a new build is never served stale scripts and styles
-    for a in ["app.css", "htmx.min.js", "app.js"] {
+    for a in ["app.css", "htmx.min.js", "app.js", "theme.js", "viewer.js"] {
         assert!(page.contains(&format!("/static/{a}?v={}", b.hash)), "{a}");
     }
     // the About page

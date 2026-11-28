@@ -1,14 +1,55 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", ":semanticCommits"],
+  "extends": [
+    "config:recommended",
+    ":semanticCommits"
+  ],
   "timezone": "UTC",
-  "schedule": ["before 6am on monday"],
+  "schedule": [
+    "before 6am on monday"
+  ],
   "prConcurrentLimit": 5,
-  "vulnerabilityAlerts": { "labels": ["security"], "schedule": ["at any time"] },
+  "vulnerabilityAlerts": {
+    "labels": [
+      "security"
+    ],
+    "schedule": [
+      "at any time"
+    ]
+  },
   "packageRules": [
-    { "matchManagers": ["cargo"], "matchUpdateTypes": ["minor", "patch"], "groupName": "rust minor/patch" },
-    { "matchManagers": ["dockerfile", "docker-compose"], "groupName": "container images" },
-    { "description": "the Nextcloud reference image is pinned on purpose (compatibility target 35.x); bump deliberately",
-      "matchPackageNames": ["nextcloud"], "enabled": false }
+    {
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "rust minor/patch"
+    },
+    {
+      "matchManagers": [
+        "dockerfile",
+        "docker-compose"
+      ],
+      "groupName": "container images"
+    },
+    {
+      "description": "the Nextcloud reference image is pinned on purpose (compatibility target 35.x); bump deliberately",
+      "matchPackageNames": [
+        "nextcloud"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "JavaScript of the live editor (editor/): grouped, never newer than 7 days, always reviewed (supply chain)",
+      "matchManagers": [
+        "npm"
+      ],
+      "groupName": "editor js",
+      "minimumReleaseAge": "7 days",
+      "automerge": false
+    }
   ]
 }

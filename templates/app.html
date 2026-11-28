@@ -7,11 +7,14 @@
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"selfRequestsOnly":true,"historyCacheSize":0}'>
 <title>{% block title %}{% endblock %} - rustbucket</title>
 <link rel="stylesheet" href="/static/app.css?v={{ chrome.build.hash }}">
+<script src="/static/theme.js?v={{ chrome.build.hash }}"></script>
+{% block head %}{% endblock %}
 <script src="/static/htmx.min.js?v={{ chrome.build.hash }}" defer></script>
 <script src="/static/app.js?v={{ chrome.build.hash }}" defer></script>
+<script src="/static/viewer.js?v={{ chrome.build.hash }}" defer></script>
 </head>
 <body>
-<header class="top">
+{% if !chrome.app %}<header class="top">
   <a class="brand" href="/apps/files/">rustbucket</a>
   <a href="/settings/user">{{ chrome.display }}</a>
   {% if chrome.is_admin %}
@@ -24,8 +27,9 @@
     </div>
   </details>
   {% endif %}
+  <button type="button" id="theme-toggle" class="theme-toggle" title="Colour theme" aria-label="Colour theme">&#9680;</button>
   <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ chrome.csrf }}"><button type="submit">Sign out</button></form>
-</header>
+</header>{% endif %}
 <div class="layout">
 {% block side %}{% endblock %}
 <main id="main" data-user="{{ chrome.uid }}" data-dav="/remote.php/dav/files/{{ chrome.uid_enc }}" data-uploads="/remote.php/dav/uploads/{{ chrome.uid_enc }}" data-trash="/remote.php/dav/trashbin/{{ chrome.uid_enc }}" data-versions="/remote.php/dav/versions/{{ chrome.uid_enc }}">

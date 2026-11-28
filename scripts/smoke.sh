@@ -69,6 +69,28 @@ check "MOVE .file assembles the file" test "$(finish)" = 201
 check "the assembled file has the same bytes" test "$(cv -u "admin:$PW" "$DAV/chunked.bin" | sha256sum | cut -d' ' -f1)" = "$wantc"
 check "the upload session is gone afterwards" test "$(cv -o /dev/null -w '%{http_code}' -X PROPFIND -H 'Depth: 0' -u "admin:$PW" "$UP")" = 404
 
+# The live editor: a WebSocket must pass nginx (Upgrade headers). The mobile apps' "direct editing" flow gets us a
+# session for one file without a browser login: open -> one-time URL -> cookie -> editor page -> WebSocket handshake.
+echo "== live editor through nginx (WebSocket)"
+check "PUT a Markdown note" test "$(cv -o /dev/null -w '%{http_code}' -T - -u "admin:$PW" "$DAV/note.md" <<< '# hello')" = 201
+FID="$(cv -X PROPFIND -H 'Depth: 0' -u "admin:$PW" -d '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop><oc:fileid/></d:prop></d:propfind>' "$DAV/note.md" | grep -o 'fileid>[0-9]*' | tr -dc 0-9)"
+check "the server advertises direct editing" bash -c "$(declare -f cv); W='$W'; cv -u 'admin:$PW' -H 'OCS-APIRequest: true' '$URL/ocs/v2.php/cloud/capabilities?format=json' | grep -q directEditing"
+OPEN="$(cv -u "admin:$PW" -H 'OCS-APIRequest: true' -X POST -d "path=/note.md&editorId=text" "$URL/ocs/v2.php/apps/files/api/v1/directEditing/open?format=json")"
+ONCE="$(echo "$OPEN" | grep -o 'https:[^"]*directEditing/[A-Za-z0-9]*' | sed 's#\\##g')"
+check "directEditing/open returns a one-time URL on the public address" bash -c "[[ '$ONCE' == $URL/apps/files/directEditing/* ]]"
+cv -D "$W/hdr" -o /dev/null "$ONCE"
+SID="$(grep -i '^set-cookie: rb_direct=' "$W/hdr" | sed 's/.*rb_direct=\([^;]*\).*/\1/' | tr -d '\r')"
+check "opening the URL redirects to the editor and sets the direct cookie" bash -c "grep -qi '^location: /apps/files/edit?id=$FID&app=1' '$W/hdr' && [ -n '$SID' ]"
+check "the one-time URL works only once" test "$(cv -o /dev/null -w '%{http_code}' "$ONCE")" = 404
+PAGE="$(cv -H "Cookie: rb_direct=$SID" "$URL/apps/files/edit?id=$FID&app=1")"
+check "the editor page is served (app mode)" bash -c "[[ '$PAGE' == *'id=\"editor\"'* ]]"
+check "the direct cookie opens nothing else (file list sends to the login)" test "$(cv -o /dev/null -w '%{http_code}' -H "Cookie: rb_direct=$SID" "$URL/apps/files/")" = 303
+CSRF="$(echo "$PAGE" | grep -o 'name="csrf-token" content="[0-9a-f]*"' | grep -o '[0-9a-f]\{64\}')"
+ws() { cv --http1.1 -m 3 -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' \
+  -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H "Origin: $1" -H "Cookie: rb_direct=$SID" "$URL/apps/files/edit/ws?id=$FID&csrf=$2" 2>/dev/null; true; }
+check "the WebSocket handshake passes nginx (101 Switching Protocols)" test "$(ws "$URL" "$CSRF")" = 101
+check "a WebSocket from another site is refused (403)" test "$(ws https://evil.example "$CSRF")" = 403
+
 echo "== restart keeps certificate and data, creates no second administrator"
 before="$(fp)"; docker restart "$N" >/dev/null; wait_healthy
 check "same certificate after a restart" test "$(fp)" = "$before"

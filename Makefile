@@ -9,13 +9,15 @@ BIND      ?= 127.0.0.1
 # names/addresses clients will use to reach the server; they go into the self-signed certificate
 TLS_NAMES ?= localhost,127.0.0.1
 RUST_IMAGE ?= rust:1
+# Node exists only for the editor bundle and its audit (never in the server image); pinned by digest
+NODE_IMAGE ?= node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a
 # build number stamped into the image: UTC date and short commit ("-dirty" with uncommitted changes; "dev" without git);
 # PKG_DATE makes the Alpine security-update layer re-run every day (see the Dockerfile)
 BUILD_ARGS = --build-arg PKG_DATE=$$(date -u +%Y%m%d) --build-arg BUILD_DATE=$$(date -u +%Y-%m-%dT%H:%M:%SZ) --build-arg GIT_COMMIT=$$(git describe --always --dirty --abbrev=7 2>/dev/null || echo unknown)
 
 .DEFAULT_GOAL := help
 .PHONY: help image run start stop restart rm logs status shell password user cert purge backup restore smoke \
-        test fmt clippy check audit-pii audit-deps scan-image e2e version bump-version
+        test fmt clippy check audit-pii audit-deps audit-js scan-image editor-bundle editor-check js-inventory e2e version bump-version
 
 help:
 	@echo "run it"
@@ -35,6 +37,8 @@ help:
 	@echo "  make version          the version in Cargo.toml and the commit the next image is stamped with"
 	@echo "  make bump-version V=0.2.0|patch|minor|major   change the version (needs python3 on the host; commits nothing)"
 	@echo "  make audit-deps       known vulnerabilities in the Rust dependencies: cargo audit (RustSec) + cargo deny (advisories, licenses, bans, sources)"
+	@echo "  make audit-js         known vulnerabilities in the JavaScript of the live editor (npm audit + registry signatures, in a container)"
+	@echo "  make editor-bundle    rebuild static/editor.js from editor/ (CodeMirror + Yjs, npm ci --ignore-scripts, in a container); editor-check verifies the committed file"
 	@echo "  make scan-image       CVEs in the built image (Alpine packages incl. nginx/openssl/curl) with Trivy; fails on fixable HIGH/CRITICAL"
 	@echo "  make audit-pii        fail if the tree contains private addresses, home paths, or real-looking emails"
 	@echo "  make e2e              real Nextcloud sync client against a throw-away server (needs 'nextcloudcmd' on the host)"
@@ -156,3 +160,21 @@ scan-image:
 
 e2e:
 	scripts/e2e.sh
+
+# JavaScript of the live editor. The lockfile is the truth; no install script of any package ever runs.
+audit-js:
+	docker run --rm -v "$(CURDIR)/editor":/src:ro $(NODE_IMAGE) sh -c 'mkdir /tmp/e && cp /src/package.json /src/package-lock.json /tmp/e && cd /tmp/e \
+	  && npm ci --ignore-scripts --no-fund --loglevel=error && npm audit --omit=dev && npm audit signatures'
+
+editor-bundle:
+	docker build -q -f editor/Dockerfile --target out --output type=local,dest=static editor
+	python3 scripts/js_inventory.py
+
+# the committed bundle must be exactly what the lockfile builds (so it can be verified instead of trusted)
+editor-check:
+	@d=$$(mktemp -d) && docker build -q -f editor/Dockerfile --target out --output type=local,dest=$$d editor >/dev/null \
+	  && cmp $$d/editor.js static/editor.js && echo "static/editor.js is reproducible from editor/package-lock.json"; r=$$?; rm -rf $$d; exit $$r
+	@python3 scripts/js_inventory.py --check || { echo "docs/js-dependencies.md is out of date: make js-inventory"; exit 1; }
+
+js-inventory:
+	python3 scripts/js_inventory.py

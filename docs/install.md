@@ -44,6 +44,9 @@ Build the bare server (`docker build --target server -t rustbucket:server .`) an
 the server speaks plain HTTP on 8080. Set `RUSTBUCKET_TRUSTED_PROXIES` to the proxy's address range (its
 `X-Forwarded-*` headers are trusted only from there) or `RUSTBUCKET_BASE_URL=https://public.name`, and make the
 proxy stream uploads (no request buffering, no body-size limit); see `docker/nginx.conf` for a working example.
+The live editor talks over a **WebSocket** (`/apps/files/edit/ws`): the proxy has to pass `Upgrade` and `Connection` on (nginx:
+`proxy_set_header Upgrade $http_upgrade;` plus a `map` for `Connection`, as in `docker/nginx.conf`; Traefik and Caddy do it by default)
+and keep idle connections for a while (`proxy_read_timeout`). Without it the editor shows "offline, reconnecting"; everything else works.
 
 ## Server configuration (environment variables, or a TOML file with the same keys in lower case)
 | Variable | Default | Meaning |
@@ -58,6 +61,8 @@ proxy stream uploads (no request buffering, no body-size limit); see `docker/ngi
 | `RUSTBUCKET_VERSION_RETENTION_DAYS` | `90` | days an old version is kept (0 = no age limit) |
 | `RUSTBUCKET_VERSIONS_MAX` | `50` | old versions kept per file |
 | `RUSTBUCKET_METRICS_TOKEN` | unset | enables `GET /metrics` for `Authorization: Bearer <token>` (404 while unset) |
+| `RUSTBUCKET_EDITOR` | `true` | the live editor for text files (and direct editing for the mobile apps); `false` answers 404 |
+| `RUSTBUCKET_EDITOR_MAX_BYTES` | `2097152` | largest text file the editor opens or keeps; bigger files are refused with a message |
 | `RUSTBUCKET_LOG_JSON` | `true` | JSON log lines |
 | `RUSTBUCKET_AUTO_MIGRATE` | `true` | run migrations on start |
 

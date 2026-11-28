@@ -1,0 +1,21 @@
+{% extends "app.html" %}
+{% block title %}{{ name }}{% endblock %}
+{% block head %}
+<meta name="csp-nonce" content="{{ nonce }}">
+<link rel="stylesheet" href="/static/editor.css?v={{ chrome.build.hash }}">
+<script src="/static/editor.js?v={{ chrome.build.hash }}" defer></script>
+{% endblock %}
+{% block content %}
+<div class="editor-head">
+  <a id="ed-close" class="back close-btn" href="/apps/files/{% if !back.is_empty() %}?dir=/{{ back }}{% endif %}" title="Save the file and go back to the file list">Save &amp; close</a>
+  <h1>{{ name }}</h1>
+  <span class="hold-group">
+    <button type="button" id="ed-undo" class="hold" disabled title="Roll back the last change, whoever made it. Hold for one second.">Undo</button>
+    <button type="button" id="ed-redo" class="hold" disabled title="Put back what was rolled back. Hold for one second.">Redo</button>
+  </span>
+  <span id="ed-status" class="muted" role="status">connecting&hellip;</span>
+  <span id="ed-people" class="people" aria-label="People here"></span>
+</div>
+{% if !can_edit %}<p class="muted">You can read this file but not change it.</p>{% endif %}
+<div id="editor" data-id="{{ fileid }}" data-edit="{% if can_edit %}1{% else %}0{% endif %}" data-user="{{ chrome.display }}"{% if chrome.app %} data-app="1"{% endif %}></div>
+{% endblock %}
